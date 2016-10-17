@@ -33,7 +33,7 @@ void loop() {
   if (firing){
       if (encoderValue >= 428){ //A rotation has been completed
         firing = false;
-        digitalWrite(catapultPin, LOW);
+        digitalWrite(catapultpin, LOW);
         encoderValue = 0;
       }
       else
