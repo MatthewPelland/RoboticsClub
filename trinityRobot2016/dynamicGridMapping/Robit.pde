@@ -6,7 +6,8 @@ class Robit{
   int sensorDist;//in pixels to approximate real world
   Cell[][] grid;
   int[][] distanceField;
-  
+  boolean targetReached;
+  ArrayList<int[]> moves;
   Robit(PVector initPos, float initAngle){
     pos = new PVector(initPos.x, initPos.y);
     vel = new PVector(0,0);
@@ -14,16 +15,40 @@ class Robit{
     angle = initAngle;
     sensorDist = int(800.0/244.0 * 100);
     grid = new Cell[int(1600/precision)][int(1600/precision)];
+    distanceField = new int[int(1600/precision)][int(1600/precision)];
+    moves = new ArrayList<int[]>();
     for(int i = 0; i < grid.length; i ++)
-      for(int j = 0; j < grid[0].length; j ++)
+      for(int j = 0; j < grid[0].length; j ++){
+        distanceField[i][j] = -1;
         grid[i][j] = Cell.UNKNOWN;
+      }
     gridPos = new int[2];
     gridPos[0] = gridPos[1] = grid.length/2;
+    targetReached = true;
   }
   
   
   void update(){
-    scanSurroundings();//unrealistic temporary spotholder
+    //scanSurroundings();//unrealistic temporary spotholder
+    if(advance()){
+      scanSurroundings();
+      createTargetPath();
+    }
+  }
+  
+  boolean advance(){//advance towards the target
+    if (moves.size() == 0)
+      return true;
+    else{
+      int deltaX = moves.get(0)[0] - gridPos[0];
+      int deltaY = moves.get(0)[1] - gridPos[1];
+      gridPos[0] += deltaX;
+      gridPos[1] += deltaY;
+      pos.x += deltaX * precision;
+      pos.y += deltaY * precision;
+      moves.remove(0);
+      return false;
+    }
   }
   
   void move(int x, int y){
@@ -42,10 +67,10 @@ class Robit{
         int targetCellX = int((distanceReading * cos(angle))/precision + gridPos[0]);
         int targetCellY = int((distanceReading * sin(angle))/precision + gridPos[1]);
         grid[targetCellX][targetCellY] = Cell.WALL;
-        for(int i = -2; i <= 2; i ++)
-          for(int j = -2; j <= 2; j ++)
-            if(grid[targetCellX + i][targetCellY + j] != Cell.WALL)
-            grid[targetCellX + i][targetCellY + j] = Cell.BLOCKED;
+        //for(int i = -2; i <= 2; i ++)
+          //for(int j = -2; j <= 2; j ++)
+            //if(grid[targetCellX + i][targetCellY + j] != Cell.WALL)
+            //grid[targetCellX + i][targetCellY + j] = Cell.BLOCKED;
       }
         for(int i = 0; i < distanceReading; i ++){
           int cellX = int(i * cos(angle)/precision + gridPos[0]);
@@ -74,11 +99,106 @@ class Robit{
     return (red(toCheck) >= 128 && green(toCheck) >= 0 && blue(toCheck) >= 128);
   }
   
-  void computeDistanceField(){
-    
+  int createTargetPath(){
+    //fills moves with list of all moves necessary to reach target tile
+    moves.clear(); 
+    int[][] distanceFieldClone = distanceField.clone();
+    int[] target = findClosestUnknown();
+    //if there are no more unknowns on the map
+    if(target[0] == -1)
+      return 1; //map completed
+    //otherwise...
+    int distance = distanceField[target[0]][target[1]];
+    int currentDist = distance;
+    int[] currentSquare = target;
+    for(int reverseCount = 0; reverseCount < distance; reverseCount ++){
+      ArrayList<int[]> openNeighbors = openNeighbors(currentSquare);
+      for(int[] neighbor : openNeighbors){
+        //if the neighbor is one square closer to robot than the current square
+        if (distanceFieldClone[neighbor[0]][neighbor[1]] == currentDist-1){
+          currentDist = distanceFieldClone[neighbor[0]][neighbor[1]];
+          moves.add(0, neighbor);//this loop runs from target to robot, so moves are inserted to the front as we come across them
+          currentSquare = neighbor;
+        }
+      }
+    }
+    return 0;//map not completed
   }
   
+  float distance(int[] pos1, int[] pos2){
+    return sqrt(pow(pos2[0] - pos1[0], 2) + pow(pos2[1] - pos1[1], 2));
+  }
   
+  int[] findClosestUnknown(){
+    for(int i = 0; i < distanceField.length; i ++)
+      for(int j = 0; j < distanceField[0].length; j ++)
+        distanceField[i][j] = -1;
+    //finds the closest unknown tile
+    ArrayList<int[]> boundary = new ArrayList<int[]>();
+    int[] robotCoords = {gridPos[0], gridPos[1]};
+    boundary.add(robotCoords);
+    distanceField[robotCoords[0]][robotCoords[1]] = 0;
+    while(boundary.size() > 0){
+      int[] checking = boundary.get(0);
+      boundary.remove(0);
+      ArrayList<int[]> openNeighbors = openNeighbors(checking);
+      for(int[] neighbor : openNeighbors){
+        if(grid[neighbor[0]][neighbor[1]] == Cell.UNKNOWN){//shouldn't keep going infinitely, this is awkward
+          distanceField[neighbor[0]][neighbor[1]] = distanceField[checking[0]][checking[1]] + 1;
+          return neighbor; //closest unknown tile
+        }
+        else{
+          if(distanceField[neighbor[0]][neighbor[1]] == -1){
+            boundary.add(neighbor);
+            distanceField[neighbor[0]][neighbor[1]] = distanceField[checking[0]][checking[1]] + 1;
+          }
+        }
+      }
+    }
+    int[] noneFound = {-1, -1};
+    return noneFound;  //no unknown tiles left, maze completely mapped
+  }
+  
+  ArrayList<int[]> openNeighbors(int[] coords){
+    //returns list of coordinates neighboring input coordinates where robot could move
+    ArrayList<int[]> openNeighbors = new ArrayList<int[]>();
+    if(grid[coords[0] + 1][coords[1]] != Cell.WALL && grid[coords[0]][coords[1]] != Cell.BLOCKED){
+      int[] neighbor = {coords[0] + 1, coords[1]};
+      openNeighbors.add(neighbor);
+    }
+    if(grid[coords[0] - 1][coords[1]] != Cell.WALL && grid[coords[0]][coords[1]] != Cell.BLOCKED){
+      int[] neighbor = {coords[0] - 1, coords[1]};
+      openNeighbors.add(neighbor);
+    }
+    if(grid[coords[0]][coords[1] + 1] != Cell.WALL && grid[coords[0]][coords[1]] != Cell.BLOCKED){
+      int[] neighbor = {coords[0], coords[1] + 1};
+      openNeighbors.add(neighbor);
+    }
+    if(grid[coords[0]][coords[1] - 1] != Cell.WALL && grid[coords[0]][coords[1]] != Cell.BLOCKED){
+      int[] neighbor = {coords[0], coords[1] - 1};
+      openNeighbors.add(neighbor);
+    }
+    //For if we think we can move diagonally
+    /*
+    if(grid[coords[0] + 1][coords[1]+ 1] != Cell.WALL && grid[coords[0]][coords[1]] != Cell.BLOCKED){
+      int[] neighbor = {coords[0] + 1, coords[1] +1};
+      openNeighbors.add(neighbor);
+    }
+    if(grid[coords[0] - 1][coords[1]-1] != Cell.WALL && grid[coords[0]][coords[1]] != Cell.BLOCKED){
+      int[] neighbor = {coords[0] - 1, coords[1]-1};
+      openNeighbors.add(neighbor);
+    }
+    if(grid[coords[0]-1][coords[1] + 1] != Cell.WALL && grid[coords[0]][coords[1]] != Cell.BLOCKED){
+      int[] neighbor = {coords[0]-1, coords[1] + 1};
+      openNeighbors.add(neighbor);
+    }
+    if(grid[coords[0]+1][coords[1] - 1] != Cell.WALL && grid[coords[0]][coords[1]] != Cell.BLOCKED){
+      int[] neighbor = {coords[0] + 1, coords[1] - 1};
+      openNeighbors.add(neighbor);
+    }*/
+    
+    return openNeighbors;
+  }
   
   
   void display(){
@@ -101,7 +221,12 @@ class Robit{
       for(int j = 0; j < grid[i].length; j ++){
         switch(grid[i][j]){
         case CLEAR:
-          fill(0);
+          if(distanceField[i][j] != -1){
+            fill((distanceField[i][j] * 10)%255);
+          }
+          else{
+            fill(0);
+          }
           break;
         case WALL:
           fill(255);

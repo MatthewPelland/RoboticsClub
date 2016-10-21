@@ -3,6 +3,7 @@ public enum Cell{UNKNOWN, WALL, CLEAR, BLOCKED};//blocked means too close to wal
 
 
 void setup(){
+  frameRate(100000000);
   size(1600, 800);
   background(0, 0, 0);
   robot = new Robit(new PVector(width/4, height/2), 0);
@@ -13,14 +14,14 @@ boolean update = true;
 
 boolean drawing = false;
 PImage maze;
-float precision = 5;
+float precision = 10;
 void draw(){
   background(128);
   image(maze, 0, 0);
   drawGrid(precision);
   robot.update();
   robot.display();
-  update = !update;
+  delay(100);
 }
 
 void mouseClicked(){
@@ -57,6 +58,15 @@ void keyPressed(){
   case 'b':
   case 'c':
   case 'd':
-    
+    String map = "maze" + Character.toUpperCase(key) + ".jpg";
+    maze = loadImage(map);
+    maze.resize(width/2, height);
+    break;
+  case 's':
+    robot.scanSurroundings();
+    break;
+  case ' ':
+    robot.findClosestUnknown();
   }
+  
 }
