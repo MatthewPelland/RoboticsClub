@@ -7,6 +7,8 @@ class Robit{
   Cell[][] grid;
   int[][] distanceField;
   boolean targetReached;
+  int targetDiameter;
+  int[] target;
   ArrayList<int[]> moves;
   Robit(PVector initPos, float initAngle){
     pos = new PVector(initPos.x, initPos.y);
@@ -25,11 +27,11 @@ class Robit{
     gridPos = new int[2];
     gridPos[0] = gridPos[1] = grid.length/2;
     targetReached = true;
+    targetDiameter = 0;
   }
   
   
   void update(){
-    //scanSurroundings();//unrealistic temporary spotholder
     if(advance()){
       scanSurroundings();
       createTargetPath();
@@ -59,6 +61,16 @@ class Robit{
   }
   
   void scanSurroundings(){
+    
+    //   THIS IS A REALLY GOOD IDEA MUST DO |
+    //                                      V
+    
+    //////////////////////////////////////////////////////////////////////////////////////////////
+    //when there is a wall ignore readings from previous and next few, unless reading was a wall//
+    //////////////////////////////////////////////////////////////////////////////////////////////
+    
+    
+    
     //Robot rotates 360 degrees, recording distance data, and uses that data to construct where the walls are in the gridmap
     float temp = angle;
     for(float targetAngle = angle + 2*PI; angle < targetAngle; angle += PI/180){
@@ -67,10 +79,10 @@ class Robit{
         int targetCellX = int((distanceReading * cos(angle))/precision + gridPos[0]);
         int targetCellY = int((distanceReading * sin(angle))/precision + gridPos[1]);
         grid[targetCellX][targetCellY] = Cell.WALL;
-        //for(int i = -2; i <= 2; i ++)
-          //for(int j = -2; j <= 2; j ++)
-            //if(grid[targetCellX + i][targetCellY + j] != Cell.WALL)
-            //grid[targetCellX + i][targetCellY + j] = Cell.BLOCKED;
+        for(int i = -1; i <= 1; i ++)
+          for(int j = -1; j <= 1; j ++)
+            if(grid[targetCellX + i][targetCellY + j] != Cell.WALL)
+              grid[targetCellX + i][targetCellY + j] = Cell.WALL;
       }
         for(int i = 0; i < distanceReading; i ++){
           int cellX = int(i * cos(angle)/precision + gridPos[0]);
@@ -103,7 +115,8 @@ class Robit{
     //fills moves with list of all moves necessary to reach target tile
     moves.clear(); 
     int[][] distanceFieldClone = distanceField.clone();
-    int[] target = findClosestUnknown();
+    target = findClosestUnknown();
+    targetDiameter = 250;
     //if there are no more unknowns on the map
     if(target[0] == -1)
       return 1; //map completed
@@ -111,13 +124,46 @@ class Robit{
     int distance = distanceField[target[0]][target[1]];
     int currentDist = distance;
     int[] currentSquare = target;
+    int[] initialDirection = {7, 7};
+    boolean changedDirection = false;
     for(int reverseCount = 0; reverseCount < distance; reverseCount ++){
       ArrayList<int[]> openNeighbors = openNeighbors(currentSquare);
       for(int[] neighbor : openNeighbors){
         //if the neighbor is one square closer to robot than the current square
         if (distanceFieldClone[neighbor[0]][neighbor[1]] == currentDist-1){
           currentDist = distanceFieldClone[neighbor[0]][neighbor[1]];
-          moves.add(0, neighbor);//this loop runs from target to robot, so moves are inserted to the front as we come across them
+          if(initialDirection[0] == 7){
+            initialDirection[0] = neighbor[0] - currentSquare[0];
+            initialDirection[1] = neighbor[1] - currentSquare[1];
+          }
+          
+          if (changedDirection){
+            moves.add(0, neighbor);
+          }
+          else{
+            if (neighbor[0] - currentSquare[0] != initialDirection[0] || neighbor[1] - currentSquare[1] != initialDirection[1] 
+                || neighbor[0] - target[0] > sensorDist || neighbor[1] - target[1] > sensorDist){
+                  changedDirection = true;
+                  //this loop runs from target to robot, so moves are inserted to the front as we come across them
+                  moves.add(0, neighbor);
+                }
+          }
+          
+          
+          ///////////////////////////////////////////////////
+          //                                               //
+          //         can still be improved...              //
+          //                                               //
+          ///////////////////////////////////////////////////
+          
+          
+          ///////////////////////////////////////////////////////////
+          // every time direction changes, create a waypoint       //
+          // robot motion profiles to each waypoint, then corrects //
+          ///////////////////////////////////////////////////////////
+          
+          
+
           currentSquare = neighbor;
         }
       }
@@ -212,6 +258,11 @@ class Robit{
     gridDisplay();
     fill(0, 255, 0);
     ellipse(1200 + precision/4, 400 + precision/4, precision, precision);
+    if((targetDiameter -= 25) > 0){
+      stroke(255, 0, 0);
+      noFill();
+      ellipse(1200 + (target[0]-gridPos[0])*precision/2, 400 + (target[1] - gridPos[1])*precision/2, targetDiameter, targetDiameter);
+    }
   }
   
   void gridDisplay(){
@@ -222,7 +273,7 @@ class Robit{
         switch(grid[i][j]){
         case CLEAR:
           if(distanceField[i][j] != -1){
-            fill((distanceField[i][j] * 10)%255);
+            fill((distanceField[i][j] * 10)%255, 255 - (distanceField[i][j] * 10)%255, 0);
           }
           else{
             fill(0);
@@ -230,9 +281,6 @@ class Robit{
           break;
         case WALL:
           fill(255);
-          break;
-        case BLOCKED:
-          fill(180);
           break;
         default:
           fill(128);
@@ -242,5 +290,4 @@ class Robit{
       }
     }
   }
-
 }

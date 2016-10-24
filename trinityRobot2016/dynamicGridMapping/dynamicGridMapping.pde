@@ -1,6 +1,20 @@
-Robit robot;
-public enum Cell{UNKNOWN, WALL, CLEAR, BLOCKED};//blocked means too close to wall to move there
+/**********************
 
+  a, b, c, d to choose maps, r to make random maze
+
+**********************/
+
+
+
+
+
+
+Robit robot;
+public enum Cell{UNKNOWN, WALL, CLEAR};//blocked means too close to wall to move there
+boolean mazeGeneration = false;
+boolean generating  = false, go = false;
+Maze myMaze;
+PGraphics mazeImg;
 
 void setup(){
   frameRate(100000000);
@@ -8,20 +22,42 @@ void setup(){
   background(0, 0, 0);
   robot = new Robit(new PVector(width/4, height/2), 0);
   maze = loadImage("mazeD.jpg");
+  mazeImg = createGraphics(width/2, height);
+  myMaze = new Maze(width, height, 50, maze);
+  mazeImg.beginDraw();
+  mazeImg.background(0);
+  mazeImg.stroke(255);
+  mazeImg.line(0,0, 0,800);
+  mazeImg.line(0,799, 800,799);
+  mazeImg.line(800,800, 800,0);
+  mazeImg.line(800,0, 0,0);
+  mazeImg.endDraw();
   maze.resize(width/2, height);
 }
 boolean update = true;
 
 boolean drawing = false;
 PImage maze;
-float precision = 10;
+float precision = 5;
 void draw(){
   background(128);
-  image(maze, 0, 0);
-  drawGrid(precision);
+  if(mazeGeneration){
+    if (generating){
+      myMaze.generateWalls();
+    }
+    image(mazeImg, 0, 0);
+  }
+  else{
+    image(maze, 0, 0);
+  }
+  if(!generating){
+    drawGrid(precision);
+    robot.update();
+    //delay(100);
+  }
+  if(go)
   robot.update();
   robot.display();
-  delay(100);
 }
 
 void mouseClicked(){
@@ -58,6 +94,8 @@ void keyPressed(){
   case 'b':
   case 'c':
   case 'd':
+    mazeGeneration = false;
+    generating = false;
     String map = "maze" + Character.toUpperCase(key) + ".jpg";
     maze = loadImage(map);
     maze.resize(width/2, height);
@@ -65,8 +103,16 @@ void keyPressed(){
   case 's':
     robot.scanSurroundings();
     break;
+  case 'r':
+    mazeGeneration = true;
+    generating = true;
+    break;
   case ' ':
-    robot.findClosestUnknown();
+    generating = false;
+    break;
+  case 'x':
+    go = true;
+    break;
   }
   
 }
