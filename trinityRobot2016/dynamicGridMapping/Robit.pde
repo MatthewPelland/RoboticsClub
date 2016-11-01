@@ -2,8 +2,7 @@ class Robit{
   PVector pos, vel, acc;
   int[] gridPos;
   float angle;
-  float vAng;
-  int sensorDist;//in pixels to approximate real world
+  int sensorRange;//in pixels to approximate real world
   Cell[][] grid;
   int[][] distanceField;
   boolean targetReached;
@@ -15,7 +14,7 @@ class Robit{
     vel = new PVector(0,0);
     acc = new PVector(0,0);
     angle = initAngle;
-    sensorDist = int(800.0/244.0 * 100);
+    sensorRange = int(800.0/244.0 * 100);
     grid = new Cell[int(1600/precision)][int(1600/precision)];
     distanceField = new int[int(1600/precision)][int(1600/precision)];
     moves = new ArrayList<int[]>();
@@ -31,14 +30,31 @@ class Robit{
   }
   
   
+/*void intitialScan(){//maybe just go for perpindicularity
+    ArrayList<Integer> distances = new ArrayList<Integer>();
+    float temp = angle;
+    for(float targetAngle = angle + 2*PI; angle < targetAngle; angle += 2*PI/360){
+      distances.add(computeDistance());
+    }
+    angle = temp;
+    int closestWallIndex = ...something;//minimum(distances);//not really, some work needs to be done here....
+    //problem lies when in room four, closest could potentially be that awkward corner
+    int[] wallIndices = {closestWallIndex, (closestWallIndex + 90)%360, (closestWallIndex + 180)%360, (closestWallIndex + 270)%360};
+    float averageDistance = 0;
+    int count = 0;
+  }*/
+  
+  
   void update(){
+    //if entering room scan room
     if(advance()){
       scanSurroundings();
       createTargetPath();
     }
   }
   
-  boolean advance(){//advance towards the target
+  boolean advance(){
+    //advance towards the target and return true if target has been reached
     if (moves.size() == 0)
       return true;
     else{
@@ -75,7 +91,7 @@ class Robit{
     float temp = angle;
     for(float targetAngle = angle + 2*PI; angle < targetAngle; angle += PI/180){
       float distanceReading = computeDistance();
-      if (distanceReading < sensorDist){
+      if (distanceReading < sensorRange){
         int targetCellX = int((distanceReading * cos(angle))/precision + gridPos[0]);
         int targetCellY = int((distanceReading * sin(angle))/precision + gridPos[1]);
         grid[targetCellX][targetCellY] = Cell.WALL;
@@ -97,13 +113,13 @@ class Robit{
   int computeDistance(){
     //returns distance to closest wall in direction robot is facing
     PVector looking = new PVector(cos(angle), sin(angle));
-    for(int i = 10; i < sensorDist; i ++){
+    for(int i = 10; i < sensorRange; i ++){
       looking.setMag(i);
       color maybeWall = get(int(looking.x + pos.x), int(looking.y + pos.y));
       if (isWall(maybeWall))
         return i;
     }
-    return (int)sensorDist;
+    return (int)sensorRange;
   }
   
   boolean isWall(color toCheck){
@@ -142,7 +158,7 @@ class Robit{
           }
           else{
             if (neighbor[0] - currentSquare[0] != initialDirection[0] || neighbor[1] - currentSquare[1] != initialDirection[1] 
-                || neighbor[0] - target[0] > sensorDist || neighbor[1] - target[1] > sensorDist){
+                || abs(neighbor[0] - target[0]) >= sensorRange/precision - 5|| abs(neighbor[1] - target[1]) >= sensorRange/precision - 5){
                   changedDirection = true;
                   //this loop runs from target to robot, so moves are inserted to the front as we come across them
                   moves.add(0, neighbor);
@@ -208,19 +224,19 @@ class Robit{
   ArrayList<int[]> openNeighbors(int[] coords){
     //returns list of coordinates neighboring input coordinates where robot could move
     ArrayList<int[]> openNeighbors = new ArrayList<int[]>();
-    if(grid[coords[0] + 1][coords[1]] != Cell.WALL && grid[coords[0]][coords[1]] != Cell.BLOCKED){
+    if(grid[coords[0] + 1][coords[1]] != Cell.WALL){
       int[] neighbor = {coords[0] + 1, coords[1]};
       openNeighbors.add(neighbor);
     }
-    if(grid[coords[0] - 1][coords[1]] != Cell.WALL && grid[coords[0]][coords[1]] != Cell.BLOCKED){
+    if(grid[coords[0] - 1][coords[1]] != Cell.WALL){
       int[] neighbor = {coords[0] - 1, coords[1]};
       openNeighbors.add(neighbor);
     }
-    if(grid[coords[0]][coords[1] + 1] != Cell.WALL && grid[coords[0]][coords[1]] != Cell.BLOCKED){
+    if(grid[coords[0]][coords[1] + 1] != Cell.WALL){
       int[] neighbor = {coords[0], coords[1] + 1};
       openNeighbors.add(neighbor);
     }
-    if(grid[coords[0]][coords[1] - 1] != Cell.WALL && grid[coords[0]][coords[1]] != Cell.BLOCKED){
+    if(grid[coords[0]][coords[1] - 1] != Cell.WALL){
       int[] neighbor = {coords[0], coords[1] - 1};
       openNeighbors.add(neighbor);
     }
@@ -254,7 +270,7 @@ class Robit{
     ellipse(pos.x, pos.y, 10, 10);
     ellipse(pos.x + 5*cos(angle), pos.y + 5*sin(angle), 5, 5);
     fill(0, 0, 0, 0);
-    ellipse(pos.x, pos.y, 2*sensorDist, 2*sensorDist);
+    ellipse(pos.x, pos.y, 2*sensorRange, 2*sensorRange);
     gridDisplay();
     fill(0, 255, 0);
     ellipse(1200 + precision/4, 400 + precision/4, precision, precision);

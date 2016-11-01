@@ -1,3 +1,5 @@
+//none of this is actually robot pertinent
+
 class Maze{
   int width, height;
   ArrayList<float[]> usingPoints = new ArrayList<float[]>();
@@ -34,11 +36,12 @@ class Maze{
         maze.addToPoint(neighbor, usingPoint);
         usingPoints.add(neighbor);
         allPoints.add(neighbor);
-       
-        mazeImg.beginDraw();
-        mazeImg.stroke(colorToUse(neighbor[0], neighbor[1]));
-        mazeImg.line(usingPoint[0], usingPoint[1], neighbor[0], neighbor[1]);
-        mazeImg.endDraw();
+        if(random(100) > 10){
+          mazeImg.beginDraw();
+          mazeImg.stroke(colorToUse(neighbor[0], neighbor[1]));
+          mazeImg.line(usingPoint[0], usingPoint[1], neighbor[0], neighbor[1]);
+          mazeImg.endDraw();
+        }
       }
     }
   }

@@ -1,3 +1,4 @@
+//again, not robot pertinent
 class MazePoints{
   ArrayList<ArrayList<float[]>> points = new ArrayList<ArrayList<float[]>>();
   

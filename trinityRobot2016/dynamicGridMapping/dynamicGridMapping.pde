@@ -10,20 +10,24 @@
 
 
 Robit robot;
-public enum Cell{UNKNOWN, WALL, CLEAR};//blocked means too close to wall to move there
-boolean mazeGeneration = false;
-boolean generating  = false, go = false;
+public enum Cell{UNKNOWN, WALL, CLEAR};
+boolean mazeGeneration = false;//using generated maze rather than arenas
+boolean generating  = false, go = false;//go is override to tell robot to update, generating - generating maze
 Maze myMaze;
 PGraphics mazeImg;
+boolean paused = false;
+PImage arena;
+float precision = 5;
 
 void setup(){
   frameRate(100000000);
   size(1600, 800);
   background(0, 0, 0);
   robot = new Robit(new PVector(width/4, height/2), 0);
-  maze = loadImage("mazeD.jpg");
+  arena = loadImage("mazeD.jpg");
   mazeImg = createGraphics(width/2, height);
-  myMaze = new Maze(width, height, 50, maze);
+  myMaze = new Maze(width, height, 50, arena);
+  //construct outer border so robot can't exit screen
   mazeImg.beginDraw();
   mazeImg.background(0);
   mazeImg.stroke(255);
@@ -32,13 +36,10 @@ void setup(){
   mazeImg.line(800,800, 800,0);
   mazeImg.line(800,0, 0,0);
   mazeImg.endDraw();
-  maze.resize(width/2, height);
+  arena.resize(width/2, height);
 }
-boolean update = true;
 
-boolean drawing = false;
-PImage maze;
-float precision = 5;
+
 void draw(){
   background(128);
   if(mazeGeneration){
@@ -48,19 +49,18 @@ void draw(){
     image(mazeImg, 0, 0);
   }
   else{
-    image(maze, 0, 0);
+    image(arena, 0, 0);
   }
-  if(!generating){
+  if(!generating && !paused){
     drawGrid(precision);
     robot.update();
-    //delay(100);
   }
   if(go)
-  robot.update();
+    robot.update();
   robot.display();
 }
 
-void mouseClicked(){
+void mouseClicked(){ //reposition and reinitiate robot
   robot = new Robit(new PVector(mouseX, mouseY), 0);
 }
 
@@ -76,7 +76,7 @@ void drawGrid(float precision){
 
 
 void keyPressed(){
-  switch(keyCode){
+  /*switch(keyCode){
     case UP:
       robot.move(0, -1);
       break;
@@ -88,31 +88,34 @@ void keyPressed(){
       break;
     case RIGHT:
       robot.move(1, 0);
-  }
+  }*/
   switch(key){
   case 'a':
   case 'b':
   case 'c':
   case 'd':
+    //load respective arena onto screen
     mazeGeneration = false;
     generating = false;
     String map = "maze" + Character.toUpperCase(key) + ".jpg";
-    maze = loadImage(map);
-    maze.resize(width/2, height);
+    arena = loadImage(map);
+    arena.resize(width/2, height);
     break;
   case 's':
     robot.scanSurroundings();
     break;
-  case 'r':
+  case 'r': //switch from arena to maze generation
     mazeGeneration = true;
     generating = true;
     break;
-  case ' ':
+  case ' ': //pause generating
     generating = false;
     break;
-  case 'x':
+  case 'x': //override robot to update
     go = true;
     break;
+  case 'p':
+    paused = !paused;
   }
   
 }
