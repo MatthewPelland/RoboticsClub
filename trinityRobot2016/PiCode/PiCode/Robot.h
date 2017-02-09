@@ -18,68 +18,58 @@ enum Cell { UNKNOWN, WALL, CLEAR };
 #define ROBOTSIZE 31 //robot diameter in cm
 #define GRIDSIZE int(4.5 * arenaLength/cellSize)//big enough to hold entire maze no matter where we start
 
-typedef struct vector2d {
-	double x, y;
+class Point {
+  int x, y;
 
-	vector2d() {
-		x = 0;
-		y = 0;
-	}
+  vector2i() {
+    x = 0;
+    y = 0;
+  }
 
-	vector2d(double x, double y) {
-		this->x = x;
-		this->y = y;
-	}
-} vec2d;
+  vector2i(int x_, int y_) {
+    x = x_;
+    y = y_;
+  }
+  
+  static double distance(Point a, Point b) {
+    return sqrt(pow(b.x - a.x, 2) + pow(b.y - a.y, 2));
+  }
 
-typedef struct vector2i {
-	int x, y;
-
-	vector2i() {
-		x = 0;
-		y = 0;
-	}
-
-	vector2i(int x, int y) {
-		this->x = x;
-		this->y = y;
-	}
-} vec2i;
+};
 
 class Robot {
 public:
-	Robot();
-	~Robot();
-	//Arduino Commands
-	void moveRobotTo(std::vector<vec2i>); //Updates position values
-	void SonarAdjust(int * sonarData);
+  Robot();
+  ~Robot();
+  //Arduino Commands
+  void moveRobotTo(std::vector<Point>); //Updates position values
+  void SonarAdjust(int * sonarData);
 
-	//PI Commands
-	void update(); //this is where the magic happens
+  //PI Commands
+  void update(); //this is where the magic happens
 
-	void scan_surroundings();
-	void initialScan();
+  void scan_surroundings();
+  void initialScan();
 
-	vec2i gridPos;
-	double angle;
-	double angVel;
-	int grid[GRIDSIZE][GRIDSIZE];
-	int distanceField[gridSize][gridSize];
+  Point gridPos; // robot's current pos
+  double angle;
+  double angVel;
+  int grid[GRIDSIZE][GRIDSIZE];
+  int distanceField[gridSize][gridSize]; // 
 private:
-	int create_target_path();
-	bool advance();
-	void openNeighbors(vec2i &coords, std::vector<vec2i> *openNeighbors);
-	vec2i findClosestUnknown();
-	inline double distance(vec2i a, vec2i b);
-	double updateAngle(double timeDelta);
-	std::vector<vec2i> moves;
+  int create_target_path();
+  bool advance();
+  void openNeighbors(Point &coords, std::vector<Point> *openNeighbors);
+  Point findClosestUnknown();
+  double updateAngle(double timeDelta);
+  std::vector<Point> moves;
 
-	double getAcceleration(int pin);
-	void cleanSonarData(double * sonarArrays, int arrayLength);
-	double getSonarData(int pin);
-	vec2i target;
-	int sensorDist;//measured in centimeters
+  double getAcceleration(int pin);
+  void cleanSonarData(double * sonarArrays, int arrayLength);
+  double getSonarData(int pin);
+  Point target;
+  int sensorDist;//measured in centimeters
 
-	int arduinoSerial;
+  int arduinoSerial;
 };
 
