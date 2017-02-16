@@ -1,11 +1,11 @@
 #include "Robot.h"
-
+// For std::sleep
 #include <thread>
 #include <chrono>
 
 Robot::Robot() {
   this -> angle = 0;
-  this -> sensorDist = 100; //maximum readable distance in cm.
+  this -> sensorDist_cm = 100; //maximum readable distance
 
   for (int i = 0; i < gridSize; i++) {
     memset(grid[i], UNKNOWN, sizeof(int) * gridSize);
@@ -15,8 +15,8 @@ Robot::Robot() {
     memset(distanceField[i], -1, sizeof(int) * gridSize);
   }
 
-  gridPos.x = gridSize / 2;
-  gridPos.y = gridSize / 2;
+  currentPos.x = gridSize / 2;
+  currentPos.y = gridSize / 2;
 
   initialScan();
   create_target_path();
@@ -33,7 +33,7 @@ Robot::~Robot() {
 
 void Robot::update() {//only function called from outside the loop
   moveTo(moves);
-  scan_surroundings();
+  scanSurroundings();
   if (create_target_path()) { //returns 1 if map completed
     finalRoute();
   }
@@ -45,10 +45,11 @@ void Robot::initialScan() {
   double angleDelta = 0;
   std::vector<double> sonarData(360);
   serialPrintf("r 360");
-  while (angleDelta < M_PI / 2.0) {
+  while (angleDelta < PI / 2.0) {
     angleDelta += updateAngle(accelerometerPin);
     for (int i = 0; i < 4; i++) {
-      sonarData[(int)(angleDelta / (M_PI / 2.0) * 90) + i * 90] = getSonarData(SONARPIN1 + i);
+      sonarData[(int)(angleDelta / (PI / 2.0) * 90) + i * 90] = \
+	getSonarData(SONARPIN1 + i);
     }
   }
 
@@ -67,31 +68,39 @@ void Robot::initialScan() {
       mostPerpindicular = i;
     }
   }
-  serialPrintf("r %d", mostPerpindicular < 180 ? mostPerpindicular : mostPerpindicular - 360);
-  //wait for confirmation?  wait certain amount of time?  some waiting must occur.
+  serialPrintf("r %d", mostPerpindicular < 180 \
+	       ? mostPerpindicular \
+	       : mostPerpindicular - 360);
+  //wait for confirmation? wait certain amount of time? some waiting
+  //must occur.
   //robot is now oriented parallel to walls.
 }
 
-void Robot::scan_surroundings() {//this function is fully converted
+void Robot::scanSurroundings() {//this function is fully converted
   double angleDelta = 0;
   std::vector<double> sonarData(360);
-  //send command to rotate nonstop, or just 360+something degrees at speed to be determined
+  //send command to rotate nonstop, or just 360+something degrees at
+  //speed to be determined
   serialPrintf("r 360\n");
-  while (angleDelta < M_PI/2.0) {
+  while (angleDelta < PI/2.0) {
     angleDelta += updateAngle(ACCELEROMETERPIN);
     for (int i = 0; i < 4; i++) {
-      sonarData[(int)(angleDelta / (M_PI / 2.0) * 90) + i * 90] = getSonarData(SONARPIN1 + i);
+      sonarData[(int)(angleDelta / (PI / 2.0) * 90) + i * 90] = \
+	getSonarData(SONARPIN1 + i);
     }
   }
 
   cleanSonarData(&sonarData);
 
-  //Robot rotates 360 degrees, recording distance data, and uses that data to construct where the walls are in the gridmap
+  //Robot rotates 360 degrees, recording distance data, and uses that
+  //data to construct where the walls are in the gridmap
   for (int i = 0; i < 360; i ++) {
     double distanceReading = sonarData[i];
-    if (distanceReading < sensorDist) {
-      int targetCellX = int((distanceReading * cos(angle)) / cellSize + gridPos.x);
-      int targetCellY = int((distanceReading * sin(angle)) / cellSize + gridPos.y);
+    if (distanceReading < sensorDist_cm) {
+      int targetCellX = int((distanceReading * cos(angle)) / cellSize + \
+			    currentPos.x);
+      int targetCellY = int((distanceReading * sin(angle)) / cellSize + \
+			    currentPos.y);
       grid[targetCellX][targetCellY] = WALL;
       //
       for (int i = -; i <= 1; i++) {
@@ -103,8 +112,8 @@ void Robot::scan_surroundings() {//this function is fully converted
       }
     }
     for (int i = 0; i < distanceReading; i++) {
-      int cellX = int(i * cos(angle) / cellSize + gridPos.x);
-      int cellY = int(i * sin(angle) / cellSize + gridPos.y);
+      int cellX = int(i * cos(angle) / cellSize + currentPos.x);
+      int cellY = int(i * sin(angle) / cellSize + currentPos.y);
       if (grid[cellX][cellY] == UNKNOWN) {
 	grid[cellX][cellY] = CLEAR;
       }
@@ -128,18 +137,22 @@ int Robot::create_target_path() {
   Point currentSquare = target;
   Point prevDirection(0, 0);
   Point currDirection(0, 0);
-  for (int reverseCount = 0; reverseCount < distanceField[target.x][target.y]; reverseCount++) {
+  for (int reverseCount = 0;
+       reverseCount < distanceField[target.x][target.y];
+       reverseCount++) {
     std::vector<Point> openNeighbors = findOpenNeighbors(currentSquare);
     for (int i = 0; i < openNeighbors.size(); i++) {
       //if the neighbor is one square closer to robot than the current square
-      if (distanceField[openNeighbors[i].x][openNeighbors[i].y] == currentDist - 1) {
+      if (distanceField[openNeighbors[i].x][openNeighbors[i].y]  == \
+	  currentDist - 1) {
 	currentDist = distanceField[openNeighbors[i].x][openNeighbors[i].y];
 	prevDirection.x = currDirection.x;
 	prevDirection.y = currDirection.y;
 	currDirection.x = openNeighbors[i].x - currentSquare.x;
 	currDirection.y = openNeighbors[i].y - currentSquare.y;
 
-	if (prevDirection.x != currDirection.x || prevDirection.y != currDirection.y) {
+	if (prevDirection.x != currDirection.x || \
+	    prevDirection.y != currDirection.y) {
 	  //if there is a change in direction
 	  moves.insert(moves.begin(), currentSquare);
 	}
@@ -158,21 +171,23 @@ Point Robot::findClosestUnknown() {//This one's pretty fast
 	
   //finds the closest unknown tile
   std::vector<Point> boundary;
-  boundary.push_back(Point(gridPos.x, gridPos.y));
-  distanceField[gridPos.x][gridPos.y] = 0;
+  boundary.push_back(Point(currentPos.x, currentPos.y));
+  distanceField[currentPos.x][currentPos.y] = 0;
   while (boundary.size() > 0) {
     Point checking = boundary[0];
     boundary.erase(boundary.begin());
     std::vector<Point> openNeighbor = findOpenNeighbors(checking);
     for (int i = 0; i < openNeighbors.size(); i++) {
       if (grid[openNeighbors[i].x][openNeighbors[i].y] == UNKNOWN) {
-	distanceField[openNeighbors[i].x][openNeighbors[i].y] = distanceField[checking.x][checking.y] + 1;
+	distanceField[openNeighbors[i].x][openNeighbors[i].y] = \
+	  distanceField[checking.x][checking.y] + 1;
 	return openNeighbors[i]; //closest unknown tile
       }
       else {
 	if (distanceField[openNeighbors[i].x][openNeighbors[i].y] == -1) {
 	  boundary.push_back(openNeighbors[i]);
-	  distanceField[openNeighbors[i].x][openNeighbors[i].y] = distanceField[checking.x][checking.y] + 1;
+	  distanceField[openNeighbors[i].x][openNeighbors[i].y] = \
+	    distanceField[checking.x][checking.y] + 1;
 	}
       }
     }
@@ -190,8 +205,10 @@ std::vector<Point> Robot::findOpenNeighbors(Point &currentPos) {
   std::vector< Point > openNeighbors;
   for (int x_offset = -1; x_offset < 2; x_offset++) {
     for (int y_offset = -1; y_offset < 2; y_offset++) {
-      if (!is_diagonal_candidate(x_offset, y_offset) && grid[currentPos.x + x_offset][currentPos.y + y_offset] != WALL) {
-	openNeighbors.push_back(Point(currentPos.x + x_offset, currentPos.y + y_offset));
+      if (!is_diagonal_candidate(x_offset, y_offset) && \
+	  grid[currentPos.x + x_offset][currentPos.y + y_offset] != WALL) {
+	openNeighbors.push_back(Point(currentPos.x + x_offset,
+				      currentPos.y + y_offset));
       }
     }
   }
@@ -238,9 +255,9 @@ void Robot::cleanSonarData(std::vector<double> *sonarData) {
   //                                      V
   //why?  to prevent false walls because of flare?  I guess so.
 
-  //////////////////////////////////////////////////////////////////////////////////////////////
-  //           when there is a change from wall to clear, make all around it clear            //
-  //////////////////////////////////////////////////////////////////////////////////////////////
+  /////////////////////////////////////////////////////////////////////////
+  // when there is a change from wall to clear, make all around it clear //
+  /////////////////////////////////////////////////////////////////////////
 
   normalize(sonarData);
 
@@ -275,8 +292,8 @@ double Robot::getAcceleration(int pin) {
   return 0;
 }
 
-void finalRoute() { //route robot back to start, extinguishing any remaining candles on the way there
+//route robot back to start, extinguishing any remaining candles on the way
+void finalRoute() { 
   //the initial position is simly stored at (0, 0) in the gridMap.
 
 }
-

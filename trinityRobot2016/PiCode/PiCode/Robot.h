@@ -1,22 +1,25 @@
+#ifndef ROBOT_H_
+#define ROBOT_H_
 
 #include <vector>
 #include <cmath>
 #include <wiringPi.h>
 #include <wiringSerial.h>
-#define M_PI 3.1415926535
+
+constexpr double PI = 3.1415926535;
+constexpr int ACCELEROMETERPIN = 0;
+constexpr int SONARPIN1 = 1;
+constexpr int SONARPIN2 = 2;
+constexpr int SONARPIN3 = 3;
+constexpr int SONARPIN4 = 4;
+
+constexpr int ARENALENGTH_CM = 244;
+constexpr int CELLSIZE_CM = 1;
+constexpr int ROBOT_DIAMETER_CM = 31;
+//big enough to hold entire maze no matter where we start
+constexpr int GRIDSIZE_CELLS = 5 * ARENALENGTH_CM/CELLSIZE_CM;
 
 enum Cell { UNKNOWN, WALL, CLEAR };
-
-#define ACCELEROMETERPIN 0 
-#define SONARPIN1 1
-#define SONARPIN2 2
-#define SONARPIN3 3
-#define SONARPIN4 4
-
-#define ARENALENGTH 244 //centimeters
-#define CELLSIZE 1 //measured in centimeters
-#define ROBOTSIZE 31 //robot diameter in cm
-#define GRIDSIZE int(4.5 * arenaLength/cellSize)//big enough to hold entire maze no matter where we start
 
 class Point {
   int x, y;
@@ -38,7 +41,7 @@ class Point {
 };
 
 class Robot {
-public:
+ public:
   Robot();
   ~Robot();
   //Arduino Commands
@@ -48,15 +51,16 @@ public:
   //PI Commands
   void update(); //this is where the magic happens
 
-  void scan_surroundings();
+  void scanSurroundings();
   void initialScan();
 
-  Point gridPos; // robot's current pos
+  Point currentPos; // robot's current pos
   double angle;
   double angVel;
-  int grid[GRIDSIZE][GRIDSIZE];
-  int distanceField[gridSize][gridSize]; // 
-private:
+  int grid[GRIDSIZE_CELLS][GRIDSIZE_CELLS];
+  int distanceField[gridSize][gridSize];
+  
+ private:
   int create_target_path();
   bool advance();
   void openNeighbors(Point &coords, std::vector<Point> *openNeighbors);
@@ -68,8 +72,9 @@ private:
   void cleanSonarData(double * sonarArrays, int arrayLength);
   double getSonarData(int pin);
   Point target;
-  int sensorDist;//measured in centimeters
+  int sensorDist_cm;
 
   int arduinoSerial;
 };
 
+#endif // ROBOT_H_
