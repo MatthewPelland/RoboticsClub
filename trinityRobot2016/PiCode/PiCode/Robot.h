@@ -5,7 +5,10 @@
 #include <wiringSerial.h>
 #define M_PI 3.1415926535
 
-enum Cell { UNKNOWN, WALL, CLEAR };
+#define UNKNOWN -1
+#define FLAME 2
+#define EXTINGUISHED 3
+#define SAFEZONE 4
 
 #define ACCELEROMETERPIN 0 
 #define SONARPIN1 1
@@ -16,7 +19,8 @@ enum Cell { UNKNOWN, WALL, CLEAR };
 #define ARENALENGTH 244 //centimeters
 #define CELLSIZE 1 //measured in centimeters
 #define ROBOTSIZE 31 //robot diameter in cm
-#define GRIDSIZE int(4.5 * arenaLength/cellSize)//big enough to hold entire maze no matter where we start
+#define GRIDSIZE int(4.5 * ARENALENGTH/CELLSIZE)//big enough to hold entire maze no matter where we start
+#define CLEAR_THRESHOLD 0.25
 
 typedef struct vector2d {
 	double x, y;
@@ -46,6 +50,27 @@ typedef struct vector2i {
 	}
 } vec2i;
 
+typedef struct gridValueVector {
+	int timesScanned;
+	double cellType;
+
+	gridValueVector() {
+		timesScanned = 0;
+		cellType = UNKNOWN;
+	}
+
+	gridValueVector(int timesScanned, double cellType) {
+		this->timesScanned = timesScanned;
+		this->cellType = cellType;
+		//number from 0-1 signifies wall/clear
+		//UNKNOWN -1
+		//FLAME 2
+		//EXTINGUISHED 3
+		//SAFEZONE 4
+	}
+
+}gridVal;
+
 class Robot {
 public:
 	Robot();
@@ -59,27 +84,28 @@ public:
 
 	void scan_surroundings();
 	void initialScan();
+	void computeDistanceField(vec2i target);
 
 	vec2i gridPos;
 	double angle;
 	double angVel;
-	int grid[GRIDSIZE][GRIDSIZE];
-	int distanceField[gridSize][gridSize];
+	gridVal grid[GRIDSIZE][GRIDSIZE];
+	int distanceField[GRIDSIZE][GRIDSIZE];
 private:
-	int create_target_path();
-	bool advance();
+	int createTargetPath(vec2i target);
 	void openNeighbors(vec2i &coords, std::vector<vec2i> *openNeighbors);
 	vec2i findClosestUnknown();
 	inline double distance(vec2i a, vec2i b);
 	double updateAngle(double timeDelta);
 	std::vector<vec2i> moves;
 
-	double getAcceleration(int pin);
+	double getAngularVelocity(int pin);
 	void cleanSonarData(double * sonarArrays, int arrayLength);
 	double getSonarData(int pin);
 	vec2i target;
 	int sensorDist;//measured in centimeters
 
 	int arduinoSerial;
+	void returnToStart();
 };
 
