@@ -1,111 +1,94 @@
+#ifndef ROBOT_H_
+#define ROBOT_H_
 
 #include <vector>
 #include <cmath>
 #include <wiringPi.h>
 #include <wiringSerial.h>
-#define M_PI 3.1415926535
 
-#define UNKNOWN -1
-#define FLAME 2
-#define EXTINGUISHED 3
-#define SAFEZONE 4
+constexpr double PI = 3.1415926535;
+constexpr int ACCELEROMETERPIN = 0;
+constexpr int SONARPIN1 = 1;
+constexpr int SONARPIN2 = 2;
+constexpr int SONARPIN3 = 3;
+constexpr int SONARPIN4 = 4;
 
-#define ACCELEROMETERPIN 0 
-#define SONARPIN1 1
-#define SONARPIN2 2
-#define SONARPIN3 3
-#define SONARPIN4 4
+constexpr int UNKNOWN = -1;
+constexpr int FLAME = 2;
+constexpr int EXTINGUISHED = 3;
+constexpr int SAFEZONE = 4;
 
-#define ARENALENGTH 244 //centimeters
-#define CELLSIZE 1 //measured in centimeters
-#define ROBOTSIZE 31 //robot diameter in cm
-#define GRIDSIZE int(4.5 * ARENALENGTH/CELLSIZE)//big enough to hold entire maze no matter where we start
-#define CLEAR_THRESHOLD 0.25
+constexpr int ARENALENGTH_CM = 244;
+constexpr int CELLSIZE_CM = 1;
+constexpr int ROBOT_DIAMETER_CM = 31;
+//big enough to hold entire maze no matter where we start
+constexpr int GRIDSIZE_CELLS = 5 * ARENALENGTH_CM/CELLSIZE_CM;
 
-typedef struct vector2d {
-	double x, y;
-
-	vector2d() {
-		x = 0;
-		y = 0;
-	}
-
-	vector2d(double x, double y) {
-		this->x = x;
-		this->y = y;
-	}
-} vec2d;
-
-typedef struct vector2i {
+class Point {
+public:
 	int x, y;
 
-	vector2i() {
-		x = 0;
-		y = 0;
-	}
+    Point() {
+	x = 0;
+	y = 0;
+    }
 
-	vector2i(int x, int y) {
-		this->x = x;
-		this->y = y;
-	}
-} vec2i;
+    Point(int x_, int y_) {
+	x = x_;
+	y = y_;
+    }
+  
+    static double distance(Point a, Point b) {
+	return sqrt(pow(b.x - a.x, 2) + pow(b.y - a.y, 2));
+    }
 
-typedef struct gridValueVector {
+};
+
+struct gridVal {
 	int timesScanned;
 	double cellType;
-
-	gridValueVector() {
+	gridVal() {
 		timesScanned = 0;
-		cellType = UNKNOWN;
+		cellType = 0;
 	}
-
-	gridValueVector(int timesScanned, double cellType) {
-		this->timesScanned = timesScanned;
-		this->cellType = cellType;
-		//number from 0-1 signifies wall/clear
-		//UNKNOWN -1
-		//FLAME 2
-		//EXTINGUISHED 3
-		//SAFEZONE 4
-	}
-
-}gridVal;
+};
 
 class Robot {
 public:
-	Robot();
-	~Robot();
-	//Arduino Commands
-	void moveRobotTo(std::vector<vec2i>); //Updates position values
-	void SonarAdjust(int * sonarData);
+    Robot();
+    ~Robot();
+    //Arduino Commands
+    void moveTo(std::vector<Point>); //Updates position values
+    void SonarAdjust(int * sonarData);
 
-	//PI Commands
-	void update(); //this is where the magic happens
+    //PI Commands
+    void update(); //this is where the magic happens
 
-	void scan_surroundings();
-	void initialScan();
-	void computeDistanceField(vec2i target);
+    void scanSurroundings();
+    void initialScan();
 
-	vec2i gridPos;
-	double angle;
-	double angVel;
-	gridVal grid[GRIDSIZE][GRIDSIZE];
-	int distanceField[GRIDSIZE][GRIDSIZE];
+    Point currentPos; // robot's current pos
+    double angle;
+    double angVel;
+    gridVal grid[GRIDSIZE_CELLS][GRIDSIZE_CELLS];
+    int distanceField[GRIDSIZE_CELLS][GRIDSIZE_CELLS];
+  
 private:
-	int createTargetPath(vec2i target);
-	void openNeighbors(vec2i &coords, std::vector<vec2i> *openNeighbors);
-	vec2i findClosestUnknown();
-	inline double distance(vec2i a, vec2i b);
-	double updateAngle(double timeDelta);
-	std::vector<vec2i> moves;
-
-	double getAngularVelocity(int pin);
-	void cleanSonarData(double * sonarArrays, int arrayLength);
-	double getSonarData(int pin);
-	vec2i target;
-	int sensorDist;//measured in centimeters
-
-	int arduinoSerial;
+	void computeDistanceField(Point target);
 	void returnToStart();
+    int createTargetPath(Point target);
+    bool advance();
+	std::vector<Point> Robot::findOpenNeighbors(Point currentPos);
+    Point findClosestUnknown();
+    double updateAngle(double timeDelta);
+    std::vector<Point> moves;
+
+    double getAcceleration(int pin);
+    double getSonarData(int pin);
+    Point target;
+    int sensorDist_cm;
+
+    int arduinoSerial;
 };
 
+#endif // ROBOT_H_
