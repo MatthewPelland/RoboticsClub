@@ -17,11 +17,17 @@ Robot::Robot() {
 	memset(distanceField[i], -1, sizeof(int) * GRIDSIZE_CELLS);
     }
 
-    currentPos.x = GRIDSIZE_CELLS / 2;
-    currentPos.y = GRIDSIZE_CELLS / 2;
+ //   currentPosCells.x = GRIDSIZE_CELLS / 2;
+ //   currentPosCells.y = GRIDSIZE_CELLS / 2;
+	//currentPosCM.x = GRIDSIZE_CELLS / 2;
+	//currentPosCM.y = GRIDSIZE_CELLS / 2;
+
+	//velocity.x = 0;
+	//velocity.y = 0;
 
     initialScan();
-    create_target_path(findClosestUnknown());
+	scanSurroundings();
+    createTargetPath(findClosestUnknown());
 
     //initialize Serial
     arduinoSerial = serialOpen("/dev/ttyACM0", 9600);
@@ -55,7 +61,7 @@ void Robot::initialScan() {
 		}
     }
 
-    cleanSonarData(sonarData);
+    //cleanSonarData(sonarData);
 
     int mostPerpindicular = 0;
     int bestPerpindicularity = 10000000;
@@ -99,20 +105,19 @@ void Robot::scanSurroundings() {//double check that this one is right
 			//do sonar stuff
 			double distanceReading = sonarData[i];
 			if (distanceReading < sensorDist_cm) {
-				int targetCellX = int((distanceReading * cos(angle)) / CELLSIZE_CM + currentPos.x);
-				int targetCellY = int((distanceReading * sin(angle)) / CELLSIZE_CM + currentPos.y);
-				gridVal targetCell = grid[targetCellX][targetCellY];
+				int targetCellX = int((distanceReading * cos(angle)) / CELLSIZE_CM + currentPosCells.x);
+				int targetCellY = int((distanceReading * sin(angle)) / CELLSIZE_CM + currentPosCells.y);
+				gridVal* targetCell = &grid[targetCellX][targetCellY];
 				//check fire sensor
 				int fireSensorData = analogRead(FLAMESENSORPIN);
 				if (fireSensorData >= FLAMESENSORTHRESHOLD) {
-					targetCell.cellType = FLAME;
+					targetCell->cellType = FLAME;
 				}
-				if (targetCell.cellType <= 1) {
-					grid[targetCellX][targetCellY].cellType = (targetCell.cellType*targetCell.timesScanned + 1) / (targetCell.timesScanned++ + 1);//note the ++
+				if (targetCell->cellType <= 1) {
+					grid[targetCellX][targetCellY].cellType = (targetCell->cellType*targetCell->timesScanned + 1) / (targetCell->timesScanned++ + 1);//note the ++
 				}
 				//increase apparent size of walls to compensate for the size of the robot 
 				//so we don't have to keep track of distance to walls elsewhere.
-				//this method may have to change
 				for (int i = -ROBOT_DIAMETER_CM / CELLSIZE_CM / 2; i <= ROBOT_DIAMETER_CM / CELLSIZE_CM / 2; i++) {
 					for (int j = -ROBOT_DIAMETER_CM / CELLSIZE_CM / 2; j <= ROBOT_DIAMETER_CM / CELLSIZE_CM / 2; j++) {
 						gridVal offsetTarget = grid[targetCellX + i][targetCellY + j];
@@ -123,8 +128,8 @@ void Robot::scanSurroundings() {//double check that this one is right
 				}
 			}
 			for (int i = 0; i < distanceReading; i++) {
-				int cellX = int(i * cos(angle) / CELLSIZE_CM + currentPos.x);
-				int cellY = int(i * sin(angle) / CELLSIZE_CM + currentPos.y);
+				int cellX = int(i * cos(angle) / CELLSIZE_CM + currentPosCells.x);
+				int cellY = int(i * sin(angle) / CELLSIZE_CM + currentPosCells.y);
 				if ((int)(grid[cellX][cellY].cellType) == UNKNOWN) {
 					grid[cellX][cellY].cellType = (grid[cellX][cellY].cellType*grid[cellX][cellY].timesScanned) / (grid[cellX][cellY].timesScanned++ + 1);
 				}
@@ -149,24 +154,24 @@ int Robot::createTargetPath(Point target) {
 	Point prevDirection(0, 0);
 	Point currDirection(0, 0);
 	for (int reverseCount = 0; reverseCount < distanceField[target.x][target.y]; reverseCount++) {
-		std::vector<Point> openNeighbor;
-		openNeighbor = openNeighbors(currentSquare);
-		for (int i = 0; i < openNeighbor.size(); i++) {
+		std::vector<Point> openNeighbors;
+		openNeighbors = findOpenNeighbors(currentSquare);
+		for (int i = 0; i < openNeighbors.size(); i++) {
 			//if the neighbor is one square closer to robot than the current square
-			if (distanceField[openNeighbor[i].x][openNeighbor[i].y] == currentDist - 1) {
-				currentDist = distanceField[openNeighbor[i].x][openNeighbor[i].y];
+			if (distanceField[openNeighbors[i].x][openNeighbors[i].y] == currentDist - 1) {
+				currentDist = distanceField[openNeighbors[i].x][openNeighbors[i].y];
 				prevDirection.x = currDirection.x;
 				prevDirection.y = currDirection.y;
-				currDirection.x = openNeighbor[i].x - currentSquare.x;
-				currDirection.y = openNeighbor[i].y - currentSquare.y;
+				currDirection.x = openNeighbors[i].x - currentSquare.x;
+				currDirection.y = openNeighbors[i].y - currentSquare.y;
 
 				if (prevDirection.x != currDirection.x || prevDirection.y != currDirection.y) {
 					//if there is a change in direction
 					moves.insert(moves.begin(), currentSquare);
 				}
-				currentSquare = openNeighbor[i];
+				currentSquare = openNeighbors[i];
 			}
-			currentSquare = openNeighbor[i];
+			currentSquare = openNeighbors[i];
 		}
 	}
     return 0;//map not completed
@@ -177,22 +182,22 @@ Point Robot::findClosestUnknown() {//This one's pretty fast
 	//distanceField = (int **)malloc(GRIDSIZE_CELLS * sizeof(int *));
 
 	//finds the closest unknown tile
-	std::vector<vec2i> boundary;
-	boundary.push_back(vec2i(gridPos.x, gridPos.y));
-	distanceField[gridPos.x][gridPos.y] = 0;
+	std::vector<Point> boundary;
+	boundary.push_back(Point(currentPosCells.x, currentPosCells.y));
+	distanceField[currentPosCells.x][currentPosCells.y] = 0;
 	while (boundary.size() > 0) {
-		vec2i checking = boundary[0];
+		Point checking = boundary[0];
 		boundary.erase(boundary.begin());
 		std::vector<Point> openNeighbors;
-		openNeighbors = openNeighbors(checking);
-		for (int i = 0; i < openNeighbor.size(); i++) {
-			if (grid[openNeighbor[i].x][openNeighbor[i].y].cellType == UNKNOWN) {
-				distanceField[openNeighbor[i].x][openNeighbor[i].y] = distanceField[checking.x][checking.y] + 1;
-				return openNeighbor[i]; //closest unknown tile
+		openNeighbors = findOpenNeighbors(checking);
+		for (int i = 0; i < openNeighbors.size(); i++) {
+			if (grid[openNeighbors[i].x][openNeighbors[i].y].cellType == UNKNOWN) {
+				distanceField[openNeighbors[i].x][openNeighbors[i].y] = distanceField[checking.x][checking.y] + 1;
+				return openNeighbors[i]; //closest unknown tile
 			}
-			else if (distanceField[openNeighbor[i].x][openNeighbor[i].y] == -1) {
-					boundary.push_back(openNeighbor[i]);
-					distanceField[openNeighbor[i].x][openNeighbor[i].y] = distanceField[checking.x][checking.y] + 1;
+			else if (distanceField[openNeighbors[i].x][openNeighbors[i].y] == -1) {
+					boundary.push_back(openNeighbors[i]);
+					distanceField[openNeighbors[i].x][openNeighbors[i].y] = distanceField[checking.x][checking.y] + 1;
 				}
 		}
     }
@@ -208,8 +213,8 @@ void Robot::computeDistanceField(Point target) {
 
 	//finds the closest unknown tile
 	std::vector<Point> boundary;
-	boundary.push_back(Point(currentPos.x, currentPos.y));
-	distanceField[currentPos.x][currentPos.y] = 0;
+	boundary.push_back(Point(currentPosCells.x, currentPosCells.y));
+	distanceField[currentPosCells.x][currentPosCells.y] = 0;
 	while (boundary.size() > 0) {
 		Point checking = boundary[0];
 		boundary.erase(boundary.begin());
@@ -234,7 +239,7 @@ std::vector<Point> Robot::findOpenNeighbors(Point currentPos) {
     for (int x_offset = -1; x_offset < 2; x_offset++) {
 		for (int y_offset = -1; y_offset < 2; y_offset++) {
 			if (!is_diagonal_candidate(x_offset, y_offset) && \
-			grid[currentPos.x + x_offset][currentPos.y + y_offset].cellType < .3) {
+			grid[currentPos.x + x_offset][currentPos.y + y_offset].cellType <= CLEARTHRESHOLD) {
 			openNeighbors.push_back(Point(currentPos.x + x_offset,
 							  currentPos.y + y_offset));
 			}
@@ -262,10 +267,15 @@ void Robot::moveTo(std::vector<Point> moves) {
     }
     serialPrintf("\n");
 
-    bool atDestination = false;
-    while (!atDestination) {
-	std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    }
+   // bool atDestination = false;
+	//auto oldTime = std::chrono::high_resolution_clock::now;
+    //while (!serialDataAvail(arduinoSerial)) {
+	//	auto newTime = std::chrono::high_resolution_clock::now;
+	//	auto timeDelta = newTime - oldTime;
+
+	//	updateVelAndPos(timeDelta);
+	//std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    //}
 }
 
 double Robot::updateAngle(double timeDelta) {
@@ -283,7 +293,15 @@ void Robot::returnToStart() { //route robot back to start, extinguishing any rem
 					//the initial position is simly stored at (0, 0) in the gridMap.
 	createTargetPath(Point(GRIDSIZE_CELLS/2, GRIDSIZE_CELLS/2));
 }
-
-double Robot::getAcceleration(int pin) {
-    return 0;
-}
+//
+//Dvec Robot::getAcceleration(int pin) {
+//    return Dvec(0, 0);
+//}
+//
+//void Robot::updateVelAndPos(double timeDelta) {
+//	Dvec acc = getAcceleration(ACCELEROMETERPIN);
+//	velocity.x += acc.x * timeDelta;
+//	velocity.y += acc.y * timeDelta;
+//	currentPosCM.x += velocity.x * timeDelta;
+//	currentPosCM.y += velocity.y * timeDelta;
+//}

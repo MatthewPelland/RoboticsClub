@@ -3,7 +3,9 @@
 
 
 void main() {
-	wiringPiSetup();
+	//wiringPiSetup();
 	//pinModes
-	Robot robit();
+	Robot robit = Robot();
+	while (1)
+		robit.update();
 }

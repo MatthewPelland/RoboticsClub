@@ -7,17 +7,26 @@
 #include <wiringSerial.h>
 
 constexpr double PI = 3.1415926535;
+
+constexpr int FLAMESENSORTHRESHOLD = 0;
+//if gridValue is below or equal to .25, treat it as clear
+constexpr double CLEARTHRESHOLD = .25;
+//we would have had to have had this have to have had code
+//pins
 constexpr int ACCELEROMETERPIN = 0;
 constexpr int SONARPIN1 = 1;
 constexpr int SONARPIN2 = 2;
 constexpr int SONARPIN3 = 3;
 constexpr int SONARPIN4 = 4;
+constexpr int FLAMESENSORPIN = 5;
 
+//gridValue constants
 constexpr int UNKNOWN = -1;
 constexpr int FLAME = 2;
 constexpr int EXTINGUISHED = 3;
 constexpr int SAFEZONE = 4;
 
+//size constants
 constexpr int ARENALENGTH_CM = 244;
 constexpr int CELLSIZE_CM = 1;
 constexpr int ROBOT_DIAMETER_CM = 31;
@@ -57,38 +66,29 @@ class Robot {
 public:
     Robot();
     ~Robot();
-    //Arduino Commands
-    void moveTo(std::vector<Point>); //Updates position values
-    void SonarAdjust(int * sonarData);
-
-    //PI Commands
-    void update(); //this is where the magic happens
-
-    void scanSurroundings();
-    void initialScan();
-
-    Point currentPos; // robot's current pos
-    double angle;
-    double angVel;
-    gridVal grid[GRIDSIZE_CELLS][GRIDSIZE_CELLS];
-    int distanceField[GRIDSIZE_CELLS][GRIDSIZE_CELLS];
-  
+    void update(); //this is where the magic happens  
 private:
+	Point currentPosCells; // robot's current pos
+	gridVal grid[GRIDSIZE_CELLS][GRIDSIZE_CELLS];
+	int distanceField[GRIDSIZE_CELLS][GRIDSIZE_CELLS];
+	int createTargetPath(Point target);
+	double angle;
+	double angVel;
+	Point target;
+	std::vector<Point> moves;
+	int sensorDist_cm;
+	int arduinoSerial;
+	
+	void initialScan();
+	void scanSurroundings();
+	Point findClosestUnknown();
 	void computeDistanceField(Point target);
-	void returnToStart();
-    int createTargetPath(Point target);
-    bool advance();
+	void moveTo(std::vector<Point>); 
 	std::vector<Point> Robot::findOpenNeighbors(Point currentPos);
-    Point findClosestUnknown();
     double updateAngle(double timeDelta);
-    std::vector<Point> moves;
-
-    double getAcceleration(int pin);
     double getSonarData(int pin);
-    Point target;
-    int sensorDist_cm;
-
-    int arduinoSerial;
+	void returnToStart();
+	//	void SonarAdjust(int * sonarData);
 };
 
 #endif // ROBOT_H_
