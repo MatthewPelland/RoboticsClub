@@ -1,122 +1,69 @@
-// OpenCVWebcamTest.cpp
+#include "opencv2/highgui/highgui.hpp"
+#include "opencv2/imgproc/imgproc.hpp"
 
-#include<opencv2/core/core.hpp>
-#include<opencv2/highgui/highgui.hpp>
-#include<opencv2/imgproc/imgproc.hpp>
-#include <map>
-#include<iostream>
-#include<conio.h>           // may have to modify this line if not using Windows
+#include <iostream>
+
 using namespace cv;
 using namespace std;
-///////////////////////////////////////////////////////////////////////////////////////////////////
-int main() {
-	cv::VideoCapture capWebcam(0);            // declare a VideoCapture object and associate to webcam, 0 => use 1st webcam
 
-	if (capWebcam.isOpened() == false) {                                // check if VideoCapture object was associated to webcam successfully
-		std::cout << "error: capWebcam not accessed successfully\n\n";      // if not, print error message to std out
-		_getch();                                                           // may have to modify this line if not using Windows
-		return(0);                                                          // and exit program
-	}
-	Mat cdst;
-	cv::Mat imgOriginal;        // input image
-	cv::Mat imgGrayscale;       // grayscale of input image
-	cv::Mat imgBlurred;         // intermediate blured image
-	cv::Mat imgCanny; 
-	cv::Mat imgCanny2;// Canny edge image
-	int state = 0;
-	char charCheckForEscKey = 0;
+void findTarget(Mat &img);
 
-	while (charCheckForEscKey != 27 && capWebcam.isOpened()) {            // until the Esc key is pressed or webcam connection is lost
-		bool blnFrameReadSuccessfully = capWebcam.read(imgOriginal);            // get next frame
+int main(int argc, char** argv){
+    Mat src;
 
-		if (!blnFrameReadSuccessfully || imgOriginal.empty()) {                 // if frame not read successfully
-			std::cout << "error: frame not read from webcam\n";                 // print error message to std out
-			break;                                                              // and jump out of while loop
-		}
+    VideoCapture cap(0); //video device 0
+    if(!cap.isOpened()){
+        cout << "unable to open video source" << endl;
+        return -1;
+    }
 
-		cv::cvtColor(imgOriginal, imgGrayscale, CV_BGR2GRAY);                   // convert to grayscale
-		//
-		cv::GaussianBlur(imgGrayscale,              // input image
-			imgBlurred,                // output image
-			cv::Size(5, 5),            // smoothing window width and height in pixels
-			1.5);                      // sigma value, determines how much the image will be blurred
+    while(1){
+        cap >> src; 
 
-		cv::Canny(imgBlurred,                       // input image
-			imgCanny,                         // output image
-			95,                              // low threshold
-			100);                             // high threshold
-												  /// Detector parameters
-		cvtColor(imgCanny, cdst, CV_GRAY2BGR);
-		// detect lines
-		vector<Vec4i> lines;
-		map<Point, int> intersectionCount;
-		int count = 0;
-		
-		HoughLinesP(imgCanny, lines, 1, CV_PI / 180, 40 , 10, 10) ;
-		
-		for (size_t i = 0; i < lines.size(); i++)
-		{
-			Vec4i l = lines[i];
-			int x1 = (l[0] + l[2]+ l[3] - l[1]) / 2;
-			int x2 = (l[1] + l[3] + l[2] - l[0]) / 2;
-			int vec1 = (l[1] - l[3]);
-			int vec2 = (l[0] - l[2]);
-			int count = 0;
+        findTarget(src); 
 
-			
-			
-			for (int ii = -3; ii < 4; ii++) {
-				for (int jj = -3; jj < 4; jj++) {
+        if(waitKey(10) == 27){ //quit when ESC is pressed
+            break;
+        }
+    }
 
-
-					int x = x1 + ii * vec1 - jj * vec2;
-					int y = x2 + ii * vec2 + jj * vec1;
-					if (x > 0 && y > 0 && x < imgGrayscale.size[0] && y < imgGrayscale.size[1]) {
-						Vec3b vIntensity = imgOriginal.at<Vec3b>(x, y);
-
-						int intensity = sqrt(vIntensity.val[0] * vIntensity.val[0] + vIntensity.val[1] * vIntensity.val[1] + vIntensity.val[2] * vIntensity.val[2]);
-						count += ((intensity < 220) == ((ii + jj)% 3 == 0));
-					}
-					else {
-						break;
-					}
-				}
-			}
-
-			if (count >= 40) {
-				cout << count << endl;
-				cout << "found blue!" << endl;
-
-				line(cdst, Point(l[0], l[1]), Point(l[2], l[3]), Scalar(255, 0, 0), 3, CV_AA);
-			}
-
-			else
-			{
-				line(cdst, Point(l[0], l[1]), Point(l[2], l[3]), Scalar(255, 255, 0), 3, CV_AA);
-			}
-			
-			
-		}
-	
-		
-		// declare windows
-		cv::namedWindow("imgOriginal", CV_WINDOW_NORMAL);       // note: you can use CV_WINDOW_NORMAL which allows resizing the window
-		cv::namedWindow("imgCanny", CV_WINDOW_NORMAL);          // or CV_WINDOW_AUTOSIZE for a fixed size window matching the resolution of the image
-																// CV_WINDOW_AUTOSIZE is the default
-		cv::imshow("cdstl", cdst);                 // show windows
-		cv::imshow("imgCanny", imgOriginal);                       //
-
-		charCheckForEscKey = cv::waitKey(1);        // delay (in ms) and get key press, if any
-	}   // end while
-
-	return(0);
+    return 0;
 }
 
+void findTarget(Mat &img){
+    Mat dst, cdst;
+    vector<Vec4i> lines;
+    bool found;
+    float threshold = 20.0;
+    int numLines = 0;
 
+    Canny(img, dst, 100, 200, 3);
+    cvtColor(dst, cdst, CV_GRAY2BGR);
 
+    HoughLinesP(dst, lines, 1, CV_PI/180, 50, 50, 20);
 
+    for(size_t i = 0; i < lines.size(); i++){
+        Point pt1(lines[i][0], lines[i][1]);
+        Point pt2(lines[i][2], lines[i][3]);
 
+        float angle = fastAtan2(pt1.y - pt2.y, pt1.x - pt2.x);
+        if(angle < 90 + threshold && angle > 90 - threshold){ 
+            line(cdst, pt1, pt2, Scalar(0,0,255), 3, CV_AA);//
+            numLines++;
+        }
 
+    }
 
+    found = numLines > 10;
 
+    //draw text and bg
+    rectangle(cdst, cvPoint(10, cdst.rows - 10), cvPoint(250, cdst.rows - 30), Scalar(0, 0, 0), -1, 8);
+    if(found){
+        putText(cdst, "target found", cvPoint(10, cdst.rows - 10), FONT_HERSHEY_SIMPLEX, 0.8, cvScalar(255,255,255), 1, CV_AA);
+    } else {
+        putText(cdst, "no target found", cvPoint(10, cdst.rows - 10), FONT_HERSHEY_SIMPLEX, 0.8, cvScalar(255,255,255), 1, CV_AA);
+    }
 
+    imshow("source", img);
+    imshow("detected lines", cdst);
+}
