@@ -6,10 +6,14 @@
 #include "math.h"
 #include "Adafruit_TCS34725.h"
 
-#define ENCODER_PIN1 10 //X
-#define ENCODER_PIN2 10 //X
-#define ENCODER_PIN3 10 //Y
-#define ENCODER_PIN4 10 //Y
+#define ENCODER_PIN1A 10 //X
+#define ENCODER_PIN1B 10;
+#define ENCODER_PIN2A 10 //X
+#define ENCODER_PIN2B
+#define ENCODER_PIN3A 10 //Y
+#define ENCODER_PIN3B
+#define ENCODER_PIN4A 10 //Y
+#define ENCODER_PIN4B
 #define MOTOR_PIN1 10 //X
 #define MOTOR_PIN2 10 //X
 #define MOTOR_PIN3 10 //Y
@@ -26,10 +30,10 @@ class Drive {
 
 private:
 	Adafruit_TCS34725 color;
-	int time, lastTime;
+	int time, lastTime, totalDeg;
     int encoderValue[4];
-    int lastEncoder[4];
-    int currentEncoder[4];
+    int lastEncoder[8];
+    int currentEncoder[8];
 	int currentXPos;
 	int currentYPos;
 	bool inRoom;

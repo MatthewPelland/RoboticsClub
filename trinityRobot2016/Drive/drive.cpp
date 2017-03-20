@@ -26,33 +26,46 @@ drive::Drive()
 {
 	color = Adafruit_TCS34725(TCS34725_INTEGRATIONTIME_700MS, TCS34725_GAIN_1X); //color sensor object
 	currentEncoder = {0, 0, 0, 0}; //current encoder ticks
-	lastEncoder = {0, 0, 0, 0}; //last encoder ticks
-	encoderValue = {0, 0, 0, 0}; //raw encoder value
+	lastEncoder = {0, 0, 0, 0, 0, 0, 0, 0}; //last encoder ticks
+	encoderValue = {0, 0, 0, 0, 0, 0, 0, 0}; //raw encoder value
 	time = 0; //time since the program began running
 	lastTime = 0; //previous time
 	inRoom = false; //whether we are in a room
 	currentXPos = 0; //current x
 	currentYPos = 0; //current y
+	totalDeg = 0; //total degrees the robot has turned from its initial position
 }
 
 //updates the encoder value of the specified encoder
 //num 0, 1 - x axis
 //num 2, 3 - y axis
 void drive::updateEncoder(int encoderNum) {
-	int encoderPin = ENCODER_PIN4;
+	int encoderPinA = ENCODER_PIN4A;
+	int encoderPinB = ENCODER_PIN4B;
 	
-	if(encoderNum == 0)
-		encoderPin = ENCODER_PIN1;
-	else if(encoderNum == 1)
-		encoderPin = ENCODER_PIN2;
-	else if(encoderNum == 2)
-		encoderPin = ENCODER_PIN3;
+	if(encoderNum == 0){
+		encoderPinA = ENCODER_PIN1A;
+		encoderPinB = ENCODER_PIN1B;
+	} else if(encoderNum == 1){
+		encoderPinA = ENCODER_PIN2A;
+		encoderPinB = ENCODER_PIN2B;
+	} else if(encoderNum == 2){
+		encoderPinA = ENCODER_PIN3A;
+		encoderPinB = ENCODER_PIN3B;
+	}
 		
-	currentEncoder[encoderNum] = digitalRead(encoderPin);
-	if (currentEncoder[encoderNum] != lastEncoder[encoderNum]) {
-		encoderValue[encoderNum]++;
+	currentEncoder[encoderNum] = digitalRead(encoderPinA);
+	currentEncoder[encoderNum + 4] = digitalRead(encoderPinB);
+	if (lastEncoder[encoderNum] == LOW && currentEncoder[encoderNum] == HIGH) {
+		if(currentEncoder[encoderNum + 4] == LOW){
+			encoderValue[encoderNum]--;
+		} else {
+			encoderValue[encoderNum]++;
+		}
+		
 	}
 	lastEncoder[encoderNum] = currentEncoder[encoderNum];
+	lastEncoder[encoderNum + 4] = currentEncoder[encoderNum + 4];
 }
 
 //update the current time and last time
@@ -75,7 +88,7 @@ float drive::getLinearSpeedEncoder(char axis){
 	int lastPos = encoderToCm(lastEncoder[encoderNum]);
 	int pos = encoderToCm(currentEncoder[encoderNum]);
 	
-	return (pos - lastPos) / (time - lastTime);
+	return (pos - lastPos) / (time - lastTime) * sqrt(2);
 }
 
 float drive::getAngularSpeedEncoder(char axis){ 
@@ -192,7 +205,6 @@ float drive::getGyroData(){
 }
 
 //drives the robot
-//DOES THE ENCODER COUNT BACKWARD?? if not fix for going backwards
 /**
  * @brief Drive the robot sideways/forward along the x and y axis (relative to the robot)
  * @param x: x distance in cm
@@ -275,9 +287,9 @@ void drive::drive(int x, int y)
 		analogWrite(MOTOR_PIN4, power_y);
 	}
 	
-	//Update global current position variables
-	currentXPos += xCurrent;
-	currentYPos += yCurrent;
+	//Update global current position variables + correct for current robot angle
+	currentXPos += xCurrent * cos(totalDeg * M_PI / 180);
+	currentYPos += yCurrent * cos(totalDeg * M_PI / 180);
 	
 	//Print whether we are in the room, and current position
 	Serial.print("In Room: "); Serial.print(inRoom);
@@ -292,6 +304,7 @@ void drive::drive(int x, int y)
 void turn(int degrees){
 	//Find the linear distance the robot needs to go
 	int linear_distance = ROBOT_RADIUS * degrees * M_PI / 180;
+	totalDeg += degrees;
 	
 	//current pos
 	int current = 0;
