@@ -33,15 +33,17 @@ void loop() {
       c = Serial.read();
     }
   }
+  char* c_str = s.c_str();
+  
   switch(s[0]){
       case 'm': int x, y;
                 for(int i = 0; i < (s.length() - 1) / 4; i++){
-                  sscanf(s.c_str(), "%d %d", &x, &y);
+                  sscanf(c_str, "%d %d", &x, &y);
                   d.drive(x, y);
                 }
                 break;
       case 'r': int deg;
-                sscanf(s.c_str(), "%d", &deg);
+                sscanf(c_str, "%d", &deg);
                 d.turn(deg);
                 break;
       case 'c': getCradle();
@@ -51,7 +53,7 @@ void loop() {
       case 'e': extinguishFire();
                 break;
       case 'z': int angle;
-                sscanf(s.c_str(), "%d %d %d", &angle, &x, &y);
+                sscanf(c_str, "%d %d %d", &angle, &x, &y);
                 d.setInitialPos(x, y, angle);
                 break;
   }
