@@ -2,10 +2,23 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <drive.h>
+#include <Servo.h>
+
+#define FIRE_PIN 10
+#define CRADLE_PIN 10
+
+Servo fire;
+Servo cradle;
+
+void extinguishFire();
+void getCradle();
+void shoveBabyOutWindow();
 
 void setup() {
   // put your setup code here, to run once:
   Serial.begin(9600);
+  fire.attach(FIRE_PIN);
+  cradle.attach(CRADLE_PIN);
 }
 
 void loop() {
@@ -31,11 +44,11 @@ void loop() {
                 sscanf(s.c_str(), "%d", &deg);
                 d.turn(deg);
                 break;
-      case 'c': //get cradle
+      case 'c': getCradle();
                 break;
-      case 'w': //shove baby out the window
+      case 'w': shoveBabyOutWindow();
                 break;
-      case 'e': //activate fire extinguisher
+      case 'e': extinguishFire();
                 break;
       case 'z': int angle;
                 sscanf(s.c_str(), "%d %d %d", &angle, &x, &y);
@@ -43,3 +56,20 @@ void loop() {
                 break;
   }
 }
+
+void extinguishFire(){
+  //press button
+  fire.write(20);
+  delay(2000); //2 seconds
+  //unpress button
+  fire.write(100);
+}
+
+void getCradle(){
+  //move servo
+}
+
+void shoveBabyOutWindow(){
+  //move servo
+}
+
