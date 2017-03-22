@@ -22,12 +22,16 @@
  * color sensor - detect crossing a white line [done] ?
  * 
  */
-drive::Drive()
+Drive::Drive()
 {
 	color = Adafruit_TCS34725(TCS34725_INTEGRATIONTIME_700MS, TCS34725_GAIN_1X); //color sensor object
-	currentEncoder = {0, 0, 0, 0}; //current encoder ticks
-	lastEncoder = {0, 0, 0, 0, 0, 0, 0, 0}; //last encoder ticks
-	encoderValue = {0, 0, 0, 0, 0, 0, 0, 0}; //raw encoder value
+	for(int i = 0; i < 4; i++){
+		currentEncoder[i] = 0; //current encoder ticks
+	}
+	for(int i = 0; i < 8; i++){
+		lastEncoder[i] = 0; //last raw encoder value
+		encoderValue[i] = 0; //raw encoder value
+	}
 	time = 0; //time since the program began running
 	lastTime = 0; //previous time
 	inRoom = false; //whether we are in a room
@@ -39,7 +43,7 @@ drive::Drive()
 //updates the encoder value of the specified encoder
 //num 0, 1 - x axis
 //num 2, 3 - y axis
-void drive::updateEncoder(int encoderNum) {
+void Drive::updateEncoder(int encoderNum) {
 	int encoderPinA = ENCODER_PIN4A;
 	int encoderPinB = ENCODER_PIN4B;
 	
@@ -69,7 +73,7 @@ void drive::updateEncoder(int encoderNum) {
 }
 
 //update the current time and last time
-void drive::updateTime(){
+void Drive::updateTime(){
 	lastTime = time;
 	time = millis();
 }
@@ -79,7 +83,7 @@ void drive::updateTime(){
  * @param axis: speed along x or y axis (of the robot)
  * @return instantaneous linear speed
  */
-float drive::getLinearSpeedEncoder(char axis){ 
+double Drive::getLinearSpeedEncoder(char axis){ 
 	int encoderNum = 0;
 	if(axis == 'x')
 		encoderNum = 0;
@@ -91,10 +95,15 @@ float drive::getLinearSpeedEncoder(char axis){
 	return (pos - lastPos) / (time - lastTime) * sqrt(2);
 }
 
-float drive::getAngularSpeedEncoder(char axis){ 
+double Drive::getAngularSpeedEncoder(char axis){ 
 	return getLinearSpeedEncoder(axis) / ROBOT_RADIUS; //???
 }
 
+void Drive::setInitialPos(int x, int y, int deg){
+	currentXPos = x;
+	currentYPos = y;
+	totalDeg = deg;
+}
 
 /**
  * FIX TO INCLUDE 
@@ -106,7 +115,7 @@ float drive::getAngularSpeedEncoder(char axis){
  * @param vel: initial velocity
  * @return new velocity
  */
-float drive::getSpeedAccel(char axis, float vel){ 
+double Drive::getSpeedAccel(char axis, double vel){ 
 	
 	//v = v_0 + at
 	return vel + getAccelerometerData(axis) * (time - lastTime);
@@ -116,7 +125,7 @@ float drive::getSpeedAccel(char axis, float vel){
  * @brief Get the angular velocity from the gyro sensor
  * @return angular velocity
  */
-float drive::getSpeedGyro(){ //change to angular velocity
+double Drive::getSpeedGyro(){ //change to angular velocity
 	return getGyroData();
 }
 
@@ -125,8 +134,8 @@ float drive::getSpeedGyro(){ //change to angular velocity
  * @param cm: length in centimeters
  * @return encoder ticks
  */
-int drive::cmToEncoder(int cm){ 
-	float circ = 2 * M_PI * WHEEL_RADIUS;
+int Drive::cmToEncoder(int cm){ 
+	double circ = 2 * M_PI * WHEEL_RADIUS;
 		
 	return cm / circ * 64; //or 16??
 }
@@ -136,8 +145,8 @@ int drive::cmToEncoder(int cm){
  * @param encoder: encoder ticks
  * @return length in centimeters
  */
-int drive::encoderToCm(int encoder){ 
-	float circ = 2 * M_PI * WHEEL_RADIUS;
+int Drive::encoderToCm(int encoder){ 
+	double circ = 2 * M_PI * WHEEL_RADIUS;
 	
 	return encoder / 64 * circ;
 }
@@ -147,7 +156,7 @@ int drive::encoderToCm(int encoder){
  * 			If the color sensor sees white, we are
  * 			Otherwise, we are not
  */
-void drive::updateInRoom(){
+void Drive::updateInRoom(){
 	uint16_t r, g, b, c;
 	color.getRawData(&r, &g, &b, &c);
 	
@@ -163,9 +172,10 @@ void drive::updateInRoom(){
  * @param axis: 'x', 'y', or 'z'
  * @return acceleration in m/s^2
  */
-float drive::getAccelerometerData(char axis){
+double Drive::getAccelerometerData(char axis){
 	//raw data / 2^14 * 9.8
-	float AcX, AcY, AcZ, Tmp, GyX, GyY, GyZ;
+	double AcX, AcY, AcZ, Tmp, GyX, GyY, GyZ;
+	const int MPU_addr=0x68; 
 	Wire.beginTransmission(MPU_addr);
 	Wire.write(0x3B);  // starting with register 0x3B (ACCEL_XOUT_H)
 	Wire.endTransmission(false);
@@ -187,8 +197,9 @@ float drive::getAccelerometerData(char axis){
  * @brief Get data from the gyro
  * @return angular velocity (in ?? units) --FIX
  */
-float drive::getGyroData(){
-	float AcX, AcY, AcZ, Tmp, GyX, GyY, GyZ;
+double Drive::getGyroData(){
+	double AcX, AcY, AcZ, Tmp, GyX, GyY, GyZ;
+	const int MPU_addr=0x68; 
 	Wire.beginTransmission(MPU_addr);
 	Wire.write(0x3B);  // starting with register 0x3B (ACCEL_XOUT_H)
 	Wire.endTransmission(false);
@@ -210,31 +221,31 @@ float drive::getGyroData(){
  * @param x: x distance in cm
  * @parem y: y distance in cm
  */
-void drive::drive(int x, int y)
+void Drive::drive(int x, int y)
 {	
-	float xCurrent = 0; //current x position
-	float yCurrent = 0; //current y position
+	double xCurrent = 0; //current x position
+	double yCurrent = 0; //current y position
 	
-	int initialEnc = { encoderValue[0], encoderValue[1], encoderValue[2], encoderValue[3] };
+	int initialEnc[] = { encoderValue[0], encoderValue[1], encoderValue[2], encoderValue[3] };
 	
 	//initially 0
-	float vAccelX = 0;
-	float vAccelY = 0;
-	float vEnc = 0;
+	double vAccelX = 0;
+	double vAccelY = 0;
+	double vEnc = 0;
   
 	//PID constants !!FIND THESE!!
-	const float posKP = 0;	
-	const float posKI = 0;
-	const float posKD = 0;
+	double posKP = 0;	
+	double posKI = 0;
+	double posKD = 0;
   
-	const float velKP = 0;
-	const float velKI = 0;
-	const float velKD = 0;
+	double velKP = 0;
+	double velKI = 0;
+	double velKD = 0;
 	
-	const float MAX_V = 0; //max velocity
-	const float MAX_P = 255; //max motor power
+	const double MAX_V = 0; //max velocity
+	const double MAX_P = 255; //max motor power
 	
-	PID myPID; //object for calculating PID 
+	//PID myPID; //object for calculating PID 
 	
 	//calculate and correct for error n number of times
 	for (int n = 0; n < 100; n++)
@@ -244,39 +255,39 @@ void drive::drive(int x, int y)
 		updateInRoom();
 		for(int i = 0; i < 4; i++)
 			updateEncoder(i);
-		xCurrent = encoderToCm(encoderValue[0] - encoderToCm(initialEnc[0]);
+		xCurrent = encoderToCm(encoderValue[0] - encoderToCm(initialEnc[0]));
 		yCurrent = encoderToCm(encoderValue[2] - encoderToCm(initialEnc[2]));
 
 		//FIND TARGET VELOCITY
-		float input, output, setpoint;
+		double input, output, setpoint;
 		input = xCurrent;
 		setpoint = x;
-		myPID = PID(&input, &output, &setpoint, posKP, posKI, posKD, AUTOMATIC); //error in x distance
+		PID myPID = PID(&input, &output, &setpoint, posKP, posKI, posKD, AUTOMATIC); //error in x distance
 		myPID.Compute();
-		float target_v_x = output;
+		double target_v_x = output;
 		input = yCurrent;
 		setpoint = y;
 		myPID.Compute();
-		float target_v_y = output;
+		double target_v_y = output;
 	
 		//GET CURRENT X/Y VELOCITY
 		vAccelX = getSpeedAccel(x, vAccelX); 
-		vEnc = getLinearSpeedEncoder(x);
-		float current_v_x = (vAccelX + vEnc) / 2;
+		vEnc = getLinearSpeedEncoder('x');
+		double current_v_x = (vAccelX + vEnc) / 2;
 		vAccelY = getSpeedAccel(y, vAccelY);
-		vEnc = getLinearSpeedEncoder(y);
-		float current_v_y = (vAccelY + vEnc) / 2;
+		vEnc = getLinearSpeedEncoder('y');
+		double current_v_y = (vAccelY + vEnc) / 2;
 	
 		//FIND TARGET MOTOR POWER
 		input = current_v_x;
 		setpoint = target_v_x;
-		myPID.setTunings(velKP, velKI, velKD);
+		myPID.SetTunings(velKP, velKI, velKD);
 		myPID.Compute();
-		float power_x = output;
+		double power_x = output;
 		input = current_v_y;
 		setpoint = target_v_y;
 		myPID.Compute();
-		float power_y = output;
+		double power_y = output;
 	
 		//adjust speed based on speed error - set motor power
 		//power x = wheel set 1
@@ -292,43 +303,47 @@ void drive::drive(int x, int y)
 	currentYPos += yCurrent * cos(totalDeg * M_PI / 180);
 	
 	//Print whether we are in the room, and current position
-	Serial.print("In Room: "); Serial.print(inRoom);
-	Serial.print("\nX: "); Serial.print(currentXPos);
-	Serial.print("\nY: "); Serial.print(currentYPos);
+	Serial.print(inRoom);
+	Serial.print(currentXPos);
+	Serial.print(currentYPos);
 }
 
 /**
  * @brief Turn the robot the specified angle
  * @param angle; angle in degrees
  */
-void turn(int degrees){
+void Drive::turn(int degrees){
 	//Find the linear distance the robot needs to go
 	int linear_distance = ROBOT_RADIUS * degrees * M_PI / 180;
 	totalDeg += degrees;
 	
 	//current pos
 	int current = 0;
-	int initialEnc = { encoderValue[0], encoderValue[1], encoderValue[2], encoderValue[3] };
+	int initialEnc[] = { encoderValue[0], encoderValue[1], encoderValue[2], encoderValue[3] };
 	
 	//save initial values
-	int initialLastEnc = { lastEncoder[0], lastEncoder[1], lastEncoder[2], lastEncoder[3] };
-	int initialCEnc = { currentEncoder[0], currentEncoder[1], currentEncoder[2], currentEncoder[3] };
+	int initialLastEnc[] = { lastEncoder[0], lastEncoder[1], lastEncoder[2], lastEncoder[3], lastEncoder[6], 
+								lastEncoder[5], lastEncoder[6], lastEncoder[7] };
+	int initialCEnc[] = { currentEncoder[0], currentEncoder[1], currentEncoder[2], currentEncoder[3], currentEncoder[4], currentEncoder[5],
+							currentEncoder[6], currentEncoder[7]};
 	
 	//initially 0
-	float vGyro = 0;
-	float vEnc = 0;
+	double vGyro = 0;
+	double vEnc = 0;
   
 	//PID constants !!FIND THESE!!
-	const float posKP = 0;	
-	const float posKI = 0;
-	const float posKD = 0;
+	double posKP = 0;	
+	double posKI = 0;
+	double posKD = 0;
   
-	const float velKP = 0;
-	const float velKI = 0;
-	const float velKD = 0;
+	double velKP = 0;
+	double velKI = 0;
+	double velKD = 0;
 	
-	const float MAX_V = 0; //max velocity
-	const float MAX_P = 255; //max motor power
+	const double MAX_V = 0; //max velocity
+	const double MAX_P = 255; //max motor power
+	
+	//PID myPID;
 	
 	//calculate and correct for error n number of times
 	for (int n = 0; n < 100; n++)
@@ -341,28 +356,28 @@ void turn(int degrees){
 		current = encoderToCm(encoderValue[0]) - encoderToCm(initialEnc[0]);
 
 		//FIND TARGET VELOCITY (LINEAR (?))
-		float input, output, setpoint;
+		double input, output, setpoint;
 		input = current;
 		setpoint = linear_distance;
-		myPID = PID(&input, &output, &setpoint, posKP, posKI, posKD, AUTOMATIC); //error in x distance
+		PID myPID = PID(&input, &output, &setpoint, posKP, posKI, posKD, AUTOMATIC); //error in x distance
 		myPID.Compute();
-		float target_v = output;
+		double target_v = output;
 		
 		//convert vel to angular velocity
 		target_v = target_v / ROBOT_RADIUS;
 
 		//GET CURRENT ANGULAR VELOCITY
 		vGyro = getSpeedGyro(); 
-		vEnc = getAngularSpeedEncoder(x); 
-		float current_v_x = (vGyro + vEnc) / 2; //angular
+		vEnc = getAngularSpeedEncoder('x'); 
+		double current_v = (vGyro + vEnc) / 2; //angular
 
 	
 		//FIND TARGET MOTOR POWER
 		input = current_v;
 		setpoint = target_v;
-		myPID.setTunings(velKP, velKI, velKD);
+		myPID.SetTunings(velKP, velKI, velKD);
 		myPID.Compute();
-		float power = output;
+		double power = output;
 
 	
 		//adjust speed based on speed error - set motor power
@@ -376,8 +391,11 @@ void turn(int degrees){
 	}
 	
 	//turning is not included in normal encoder values -reset
-	encoderValue = initalEnc;
-	lastEncoder = initialLastEnc;
-	currentEncoder = initialCEnc;
+	for(int i = 0; i < 4; i++)
+		encoderValue[i] = initialEnc[i];
+	for(int i = 0; i < 8; i++){
+		lastEncoder[i] = initialLastEnc[i];
+		currentEncoder[i] = initialCEnc[i];
+	}
 }
 

@@ -1,6 +1,6 @@
 #ifndef wheel_h
 #define wheel_h
-#include <wire.h>
+#include <Wire.h>
 #include "Arduino.h"
 #include "PID_v1.h"
 #include "math.h"
@@ -9,11 +9,11 @@
 #define ENCODER_PIN1A 10 //X
 #define ENCODER_PIN1B 10;
 #define ENCODER_PIN2A 10 //X
-#define ENCODER_PIN2B
+#define ENCODER_PIN2B 10
 #define ENCODER_PIN3A 10 //Y
-#define ENCODER_PIN3B
+#define ENCODER_PIN3B 10
 #define ENCODER_PIN4A 10 //Y
-#define ENCODER_PIN4B
+#define ENCODER_PIN4B 10
 #define MOTOR_PIN1 10 //X
 #define MOTOR_PIN2 10 //X
 #define MOTOR_PIN3 10 //Y
@@ -24,11 +24,11 @@
 
 class Drive {
   public: 
-    Drive()
-    drive(int x, int y);
-	turn(int degrees);
-
-private:
+    Drive();
+    void drive(int x, int y);
+	void turn(int degrees);
+	void setInitialPos(int x, int y, int deg);
+  private:
 	Adafruit_TCS34725 color;
 	int time, lastTime, totalDeg;
     int encoderValue[4];
@@ -42,11 +42,12 @@ private:
 	void updateInRoom();
     int cmToEncoder(int cm);
     int encoderToCm(int encoder);
-	float getLinearSpeedEncoder(char axis);
-	float getAngularSpeedEncoder(char axis, float vel);
-	float getSpeedAccel();
-	float getSpeedGyro();
-	float getAccelerometerData(char axis);
+	double getLinearSpeedEncoder(char axis);
+	double getAngularSpeedEncoder(char axis);
+	double getSpeedAccel(char axis, double vel);
+	double getSpeedGyro();
+	double getGyroData();
+	double getAccelerometerData(char axis);
 };
 
 #endif
