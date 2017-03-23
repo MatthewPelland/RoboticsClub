@@ -3,35 +3,16 @@
 
 #include <vector>
 #include <cmath>
+#include <chrono>
 #include <wiringPi.h>
 #include <wiringSerial.h>
+#include "pins.h"
+#include "sonar.h"
+#include "ir.h"
+#include "gyro.h"
+#include "constants.h"
 
-constexpr double PI = 3.1415926535;
 
-constexpr int FLAMESENSORTHRESHOLD = 0;
-//if gridValue is below or equal to .25, treat it as clear
-constexpr double CLEARTHRESHOLD = .25;
-//we would have had to have had this have to have had code
-//pins
-constexpr int ACCELEROMETERPIN = 0;
-constexpr int SONARPIN1 = 1;
-constexpr int SONARPIN2 = 2;
-constexpr int SONARPIN3 = 3;
-constexpr int SONARPIN4 = 4;
-constexpr int FLAMESENSORPIN = 5;
-
-//gridValue constants
-constexpr int UNKNOWN = -1;
-constexpr int FLAME = 2;
-constexpr int EXTINGUISHED = 3;
-constexpr int SAFEZONE = 4;
-
-//size constants
-constexpr int ARENALENGTH_CM = 244;
-constexpr int CELLSIZE_CM = 1;
-constexpr int ROBOT_DIAMETER_CM = 31;
-//big enough to hold entire maze no matter where we start
-constexpr int GRIDSIZE_CELLS = 5 * ARENALENGTH_CM/CELLSIZE_CM;
 
 class Point {
 public:
@@ -48,9 +29,24 @@ public:
     }
   
     static double distance(Point a, Point b) {
-	return sqrt(pow(b.x - a.x, 2) + pow(b.y - a.y, 2));
+		return sqrt(pow(b.x - a.x, 2) + pow(b.y - a.y, 2));
     }
 
+};
+
+class DoublePoint {
+public:
+	double x, y;
+
+	DoublePoint() {
+		x = 0;
+		y = 0;
+	}
+
+	DoublePoint(double x_, double y_) {
+		x = x_;
+		y = y_;
+	}
 };
 
 struct gridVal {
@@ -64,31 +60,58 @@ struct gridVal {
 
 class Robot {
 public:
-    Robot();
+    Robot(int level);
     ~Robot();
     void update(); //this is where the magic happens  
 private:
+	int level; //level of the competition
 	Point currentPosCells; // robot's current pos
 	gridVal grid[GRIDSIZE_CELLS][GRIDSIZE_CELLS];
 	int distanceField[GRIDSIZE_CELLS][GRIDSIZE_CELLS];
-	int createTargetPath(Point target);
 	double angle;
 	double angVel;
 	Point target;
 	std::vector<Point> moves;
+	MotionSensor sensor = MotionSensor(wiringPiI2CSetup(0x68));
+	SonicSensor sonic0 = SonicSensor(SONIC1_TRIG, SONIC1_ECHO);//front
+	SonicSensor sonic1 = SonicSensor(SONIC2_TRIG, SONIC2_ECHO);//right
+	SonicSensor sonic2 = SonicSensor(SONIC3_TRIG, SONIC3_ECHO);//rear
+	SonicSensor sonic3 = SonicSensor(SONIC4_TRIG, SONIC4_ECHO);//left
+	IRSensor flameSensor = IRSensor(FLAMESENSORPIN);
 	int sensorDist_cm;
 	int arduinoSerial;
-	
+	int unextinguishedCandleCount;
+	bool inRoom;
+	//baby status variables
+	bool babySaved;
+	bool cradleFound;
+	bool babyObtained;
+	bool safeZoneFound;
+	Point safeZoneLocation;
+	std::chrono::high_resolution_clock::time_point currTime;
+	std::chrono::high_resolution_clock::time_point prevTime;
+
+	void updateTime();
+	std::vector<Point> findAberrantMinimums(double sonarData[360], const double slope_threshold, const double aberration_size_threshold);
+	std::vector<Point> locateCandles(double sonarData[4][360]);
 	void initialScan();
-	void scanSurroundings();
-	Point findClosestUnknown();
+	void scanSurroundings(bool ignoreCandles);
+	void updateGridVal(int cellX, int cellY, int type);
+	Point findNextTarget(bool);
 	void computeDistanceField(Point target);
-	void moveTo(std::vector<Point>); 
+	Point closestOpenCell(Point target);
+	void moveTo(std::vector<Point>, bool takePictures); 
+	int createTargetPath(Point target, int thresholdDistance);
+	void extinguishCandle(Point target);
+	void pushBabyOutWindow();
 	std::vector<Point> Robot::findOpenNeighbors(Point currentPos);
+	double getAngularVelocity();
     double updateAngle(double timeDelta);
-    double getSonarData(int pin);
 	void returnToStart();
-	//	void SonarAdjust(int * sonarData);
+	void goSaveBaby();
+	double distance(Point a, Point b);
+	std::vector<Point> checkForCradle(double sonarData[4][360]);
+	std::vector<Point> checkForWindow(double sonarData[4][360]);
 };
 
 #endif // ROBOT_H_

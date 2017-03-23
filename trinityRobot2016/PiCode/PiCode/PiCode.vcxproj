@@ -142,11 +142,19 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="gyro.cpp" />
+    <ClCompile Include="ir.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="Robot.cpp" />
+    <ClCompile Include="sonar.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="constants.h" />
+    <ClInclude Include="gyro.h" />
+    <ClInclude Include="ir.h" />
+    <ClInclude Include="pins.h" />
     <ClInclude Include="Robot.h" />
+    <ClInclude Include="sonar.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
