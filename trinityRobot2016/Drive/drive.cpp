@@ -25,6 +25,13 @@
 Drive::Drive()
 {
 	color = Adafruit_TCS34725(TCS34725_INTEGRATIONTIME_700MS, TCS34725_GAIN_1X); //color sensor object
+	
+	//motors
+	//motor1 = AF_DCMotor(1);
+	//motor2 = AF_DCMotor(2);
+	//motor3 = AF_DCMotor(3);
+	//motor4 = AF_DCMotor(4);
+	
 	for(int i = 0; i < 4; i++){
 		currentEncoder[i] = 0; //current encoder ticks
 	}
@@ -60,16 +67,35 @@ void Drive::updateEncoder(int encoderNum) {
 		
 	currentEncoder[encoderNum] = digitalRead(encoderPinA);
 	currentEncoder[encoderNum + 4] = digitalRead(encoderPinB);
-	if (lastEncoder[encoderNum] == LOW && currentEncoder[encoderNum] == HIGH) {
+
+	if(lastEncoder[encoderNum] != currentEncoder[encoderNum]){
+		if(currentEncoder[encoderNum] == currentEncoder[encoderNum + 4]){
+			encoderValue[encoderNum]++;
+		} else {
+			encoderValue[encoderNum]--;
+		}
+	} else if(lastEncoder[encoderNum + 4]  != currentEncoder[encoderNum + 4]){
+		if(currentEncoder[encoderNum] == currentEncoder[encoderNum + 4]){
+			encoderValue[encoderNum]--;
+		} else {
+			encoderValue[encoderNum]++;
+		}
+	}
+	/*if (lastEncoder[encoderNum] == LOW && currentEncoder[encoderNum] == HIGH) {
 		if(currentEncoder[encoderNum + 4] == LOW){
 			encoderValue[encoderNum]--;
 		} else {
 			encoderValue[encoderNum]++;
 		}
 		
-	}
+	}*/
 	lastEncoder[encoderNum] = currentEncoder[encoderNum];
 	lastEncoder[encoderNum + 4] = currentEncoder[encoderNum + 4];
+	
+	/*Serial.print("encoderValue ");
+	Serial.print(encoderNum);
+	Serial.print("= ");
+	Serial.println(encoderValue[encoderNum]);*/
 }
 
 //update the current time and last time
@@ -221,10 +247,14 @@ double Drive::getGyroData(){
  * @param x: x distance in cm
  * @parem y: y distance in cm
  */
-void Drive::drive(int x, int y)
+void Drive::drive(int x, int y, int max_speed)
 {	
 	double xCurrent = 0; //current x position
 	double yCurrent = 0; //current y position
+	
+	/*Serial.println(x);
+	Serial.println(y);
+	Serial.println("---");*/
 	
 	int initialEnc[] = { encoderValue[0], encoderValue[1], encoderValue[2], encoderValue[3] };
 	
@@ -234,85 +264,150 @@ void Drive::drive(int x, int y)
 	double vEnc = 0;
   
 	//PID constants !!FIND THESE!!
-	double posKP = 0;	
+	double posKP = 0.5;	
 	double posKI = 0;
 	double posKD = 0;
   
-	double velKP = 0;
+	double velKP = 0.5;
 	double velKI = 0;
 	double velKD = 0;
 	
-	const double MAX_V = 0; //max velocity
 	const double MAX_P = 255; //max motor power
 	
-	//PID myPID; //object for calculating PID 
-	
+		
 	//calculate and correct for error n number of times
 	for (int n = 0; n < 100; n++)
 	{
 		//Update Current Position
 		updateTime();
-		updateInRoom();
+		//updateInRoom();
+		
 		for(int i = 0; i < 4; i++)
 			updateEncoder(i);
-		xCurrent = encoderToCm(encoderValue[0] - encoderToCm(initialEnc[0]));
-		yCurrent = encoderToCm(encoderValue[2] - encoderToCm(initialEnc[2]));
+		xCurrent = encoderToCm(encoderValue[0]) - encoderToCm(initialEnc[0]);
+		yCurrent = encoderToCm(encoderValue[2]) - encoderToCm(initialEnc[2]);
+		
+		//Serial.print("xCurrent=");
+		//Serial.println(xCurrent);
+		//Serial.print("yCurrent=");
+		//Serial.println(yCurrent);
 
 		//FIND TARGET VELOCITY
-		double input, output, setpoint;
-		input = xCurrent;
-		setpoint = x;
-		PID myPID = PID(&input, &output, &setpoint, posKP, posKI, posKD, AUTOMATIC); //error in x distance
-		myPID.Compute();
-		double target_v_x = output;
-		input = yCurrent;
-		setpoint = y;
-		myPID.Compute();
-		double target_v_y = output;
+		double posInputX = xCurrent;
+		double posOutputX = 0; 
+		double posSetpointX = x;
+		PID posXPID = PID(&posInputX, &posOutputX, &posSetpointX, posKP, posKI, posKD, 0); //error in x distance
+		posXPID.SetMode(AUTOMATIC);
+		posXPID.SetOutputLimits(0, max_speed);
+		posXPID.Compute();
+		double target_v_x = posOutputX;
+		
+		double posInputY = yCurrent;
+		double posOutputY = 0;
+		double posSetpointY = y;
+		PID posYPID = PID(&posInputY, &posOutputY, &posSetpointY, posKP, posKI, posKD, 0);
+		posYPID.SetMode(AUTOMATIC);
+		posYPID.SetOutputLimits(0, max_speed);
+		posYPID.Compute();
+		double target_v_y = posOutputY;
 	
 		//GET CURRENT X/Y VELOCITY
-		vAccelX = getSpeedAccel(x, vAccelX); 
+		//vAccelX = getSpeedAccel(x, vAccelX); 
 		vEnc = getLinearSpeedEncoder('x');
-		double current_v_x = (vAccelX + vEnc) / 2;
-		vAccelY = getSpeedAccel(y, vAccelY);
+		double current_v_x = vEnc;
+		//vAccelY = getSpeedAccel(y, vAccelY);
 		vEnc = getLinearSpeedEncoder('y');
-		double current_v_y = (vAccelY + vEnc) / 2;
-	
+		double current_v_y = vEnc;
+
 		//FIND TARGET MOTOR POWER
-		input = current_v_x;
-		setpoint = target_v_x;
-		myPID.SetTunings(velKP, velKI, velKD);
-		myPID.Compute();
-		double power_x = output;
-		input = current_v_y;
-		setpoint = target_v_y;
-		myPID.Compute();
-		double power_y = output;
+		double velInputX = current_v_x;
+		double velOutputX = 0;
+		double velSetpointX = target_v_x;
+		PID velXPID = PID(&velInputX, &velOutputX, &velSetpointX, velKP, velKI, velKD, 0);
+		velXPID.SetMode(AUTOMATIC);
+		velXPID.SetOutputLimits(0, 255);
+		velXPID.Compute();
+		double power_x = velOutputX;
+		
+		double velInputY = current_v_y;
+		double velOutputY = 0;
+		double velSetpointY = target_v_y;
+		PID velYPID = PID(&velInputY, &velOutputY, &velSetpointY, velKP, velKI, velKD, 0);
+		velYPID.SetMode(AUTOMATIC);
+		velYPID.SetOutputLimits(0, 255);
+		velYPID.Compute();
+		double power_y = velOutputY;
 	
 		//adjust speed based on speed error - set motor power
 		//power x = wheel set 1
 		//power y = wheel set 2
-		analogWrite(MOTOR_PIN1, power_x);
-		analogWrite(MOTOR_PIN2, power_x);
-		analogWrite(MOTOR_PIN3, power_y);
-		analogWrite(MOTOR_PIN4, power_y);
+		
+		/*Serial.print("power x: ");
+		Serial.println(power_x);
+		Serial.print("power y: ");
+		Serial.println(power_y);*/
+		
+		double power1 = power_x / sqrt(2) - power_y / sqrt(2);
+		double power2 = power_y / sqrt(2) + power_x / sqrt(2);
+		double power3 = power_y / sqrt(2) - power_x / sqrt(2);
+		double power4 = -1 * power_x / sqrt(2) - power_y / sqrt(2);
+		/*Serial.print("power 1: ");
+		Serial.println(power1);
+		Serial.print("power 2: ");
+		Serial.println(power2);
+		Serial.print("power 3: ");
+		Serial.println(power3);
+		Serial.print("power 4: ");
+		Serial.println(power4);*/
+
+		motor1.setSpeed(abs(power1) * 100);
+		motor2.setSpeed(abs(power2) * 100);
+		motor3.setSpeed(abs(power3) * 100);
+		motor4.setSpeed(abs(power4) * 100);
+		
+		if(power1 < 0)
+			motor1.run(BACKWARD);
+		else
+			motor1.run(FORWARD);
+		if(power2 < 0)
+			motor2.run(BACKWARD);
+		else
+			motor2.run(FORWARD);
+		if(power3 < 0)
+			motor3.run(BACKWARD);
+		else
+			motor3.run(FORWARD);
+		if(power4 < 0)
+			motor4.run(BACKWARD);
+		else
+			motor4.run(FORWARD);
 	}
+	Serial.print("encoderValue ");
+	Serial.print(1);
+	Serial.print("= ");
+	Serial.println(encoderValue[0]);
+	
+	motor1.run(RELEASE);
+	motor2.run(RELEASE);
+	motor3.run(RELEASE);
+	motor4.run(RELEASE);
+	Serial.println("END");
 	
 	//Update global current position variables + correct for current robot angle
 	currentXPos += xCurrent * cos(totalDeg * M_PI / 180);
 	currentYPos += yCurrent * cos(totalDeg * M_PI / 180);
 	
 	//Print whether we are in the room, and current position
-	Serial.print(inRoom);
-	Serial.print(currentXPos);
-	Serial.print(currentYPos);
+	//Serial.print(inRoom); REMEMBER TO UNCOMMENT ***************
+	//Serial.print((int) currentXPos);
+	//Serial.print((int) currentYPos);
 }
 
 /**
  * @brief Turn the robot the specified angle
  * @param angle; angle in degrees
  */
-void Drive::turn(int degrees){
+void Drive::turn(int degrees, int max_speed){
 	//Find the linear distance the robot needs to go
 	int linear_distance = ROBOT_RADIUS * degrees * M_PI / 180;
 	totalDeg += degrees;
@@ -340,11 +435,8 @@ void Drive::turn(int degrees){
 	double velKI = 0;
 	double velKD = 0;
 	
-	const double MAX_V = 0; //max velocity
 	const double MAX_P = 255; //max motor power
-	
-	//PID myPID;
-	
+		
 	//calculate and correct for error n number of times
 	for (int n = 0; n < 100; n++)
 	{
@@ -360,6 +452,7 @@ void Drive::turn(int degrees){
 		input = current;
 		setpoint = linear_distance;
 		PID myPID = PID(&input, &output, &setpoint, posKP, posKI, posKD, AUTOMATIC); //error in x distance
+		myPID.SetOutputLimits(0, max_speed);
 		myPID.Compute();
 		double target_v = output;
 		
@@ -376,6 +469,7 @@ void Drive::turn(int degrees){
 		input = current_v;
 		setpoint = target_v;
 		myPID.SetTunings(velKP, velKI, velKD);
+		myPID.SetOutputLimits(0, 255);
 		myPID.Compute();
 		double power = output;
 
@@ -384,10 +478,20 @@ void Drive::turn(int degrees){
 		//all wheels have the same power because we're spinning
 		//power x = wheel set 1
 		//power y = wheel set 2
-		analogWrite(MOTOR_PIN1, power);
-		analogWrite(MOTOR_PIN2, power);
-		analogWrite(MOTOR_PIN3, power);
-		analogWrite(MOTOR_PIN4, power);
+		//analogWrite(MOTOR_PIN1, power);
+		//analogWrite(MOTOR_PIN2, power);
+		//analogWrite(MOTOR_PIN3, power);
+		//analogWrite(MOTOR_PIN4, power);
+		
+		motor1.setSpeed(power);
+		motor2.setSpeed(power);
+		motor3.setSpeed(power);
+		motor4.setSpeed(power);
+		
+		motor1.run(FORWARD);
+		motor2.run(FORWARD);
+		motor3.run(FORWARD);
+		motor4.run(FORWARD);
 	}
 	
 	//turning is not included in normal encoder values -reset
@@ -397,5 +501,37 @@ void Drive::turn(int degrees){
 		lastEncoder[i] = initialLastEnc[i];
 		currentEncoder[i] = initialCEnc[i];
 	}
+	
+	//done turning
+	Serial.print(1);
 }
 
+void Drive::go(int speed1, int speed2, int speed3, int speed4){
+		Serial.print("1.encoderValue ");
+		Serial.print(1);
+		Serial.print("= ");
+		Serial.println(encoderValue[0]);
+		
+		motor1.setSpeed(speed1);
+		motor2.setSpeed(speed2);
+		motor3.setSpeed(speed3);
+		motor4.setSpeed(speed4);
+		
+		motor1.run(FORWARD);
+		motor2.run(FORWARD);
+		motor3.run(FORWARD);
+		motor4.run(FORWARD);
+		
+		for(int i = 0; i < 10000; i++)
+			updateEncoder(0);
+		
+		motor1.run(RELEASE);
+		motor2.run(RELEASE);
+		motor3.run(RELEASE);
+		motor4.run(RELEASE);
+		
+		Serial.print("2.encoderValue ");
+		Serial.print(1);
+		Serial.print("= ");
+		Serial.println(encoderValue[0]);
+}
