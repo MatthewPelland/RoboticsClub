@@ -249,9 +249,6 @@ double Drive::getGyroData(){
  */
 void Drive::drive(int x, int y, int max_speed)
 {	
-	double xCurrent = 0; //current x position
-	double yCurrent = 0; //current y position
-	
 	/*Serial.println(x);
 	Serial.println(y);
 	Serial.println("---");*/
@@ -284,81 +281,33 @@ void Drive::drive(int x, int y, int max_speed)
 		
 		for(int i = 0; i < 4; i++)
 			updateEncoder(i);
-		xCurrent = encoderToCm(encoderValue[0]) - encoderToCm(initialEnc[0]);
-		yCurrent = encoderToCm(encoderValue[2]) - encoderToCm(initialEnc[2]);
+		//updateCurrent position and velocity
+		double currentXVel = getLinearSpeedEncoder('x');
+		double currentYVel = getLinearSpeedEncoder('y');
 		
-		//Serial.print("xCurrent=");
-		//Serial.println(xCurrent);
-		//Serial.print("yCurrent=");
-		//Serial.println(yCurrent);
+		currentXPos += currentXVel * (time - lastTime);
+		currentYPos += currentYVel * (time - lastTime);
 
-		//FIND TARGET VELOCITY
-		double posInputX = xCurrent;
-		double posOutputX = 0; 
-		double posSetpointX = x;
-		PID posXPID = PID(&posInputX, &posOutputX, &posSetpointX, posKP, posKI, posKD, 0); //error in x distance
-		posXPID.SetMode(AUTOMATIC);
-		posXPID.SetOutputLimits(0, max_speed);
-		posXPID.Compute();
-		double target_v_x = posOutputX;
-		
-		double posInputY = yCurrent;
-		double posOutputY = 0;
-		double posSetpointY = y;
-		PID posYPID = PID(&posInputY, &posOutputY, &posSetpointY, posKP, posKI, posKD, 0);
-		posYPID.SetMode(AUTOMATIC);
-		posYPID.SetOutputLimits(0, max_speed);
-		posYPID.Compute();
-		double target_v_y = posOutputY;
-	
-		//GET CURRENT X/Y VELOCITY
-		//vAccelX = getSpeedAccel(x, vAccelX); 
-		vEnc = getLinearSpeedEncoder('x');
-		double current_v_x = vEnc;
-		//vAccelY = getSpeedAccel(y, vAccelY);
-		vEnc = getLinearSpeedEncoder('y');
-		double current_v_y = vEnc;
+		//get x and y error
+		double xError = x - currentXPos;
+		double yError = y = currentYPos;
 
-		//FIND TARGET MOTOR POWER
-		double velInputX = current_v_x;
-		double velOutputX = 0;
-		double velSetpointX = target_v_x;
-		PID velXPID = PID(&velInputX, &velOutputX, &velSetpointX, velKP, velKI, velKD, 0);
-		velXPID.SetMode(AUTOMATIC);
-		velXPID.SetOutputLimits(0, 255);
-		velXPID.Compute();
-		double power_x = velOutputX;
-		
-		double velInputY = current_v_y;
-		double velOutputY = 0;
-		double velSetpointY = target_v_y;
-		PID velYPID = PID(&velInputY, &velOutputY, &velSetpointY, velKP, velKI, velKD, 0);
-		velYPID.SetMode(AUTOMATIC);
-		velYPID.SetOutputLimits(0, 255);
-		velYPID.Compute();
-		double power_y = velOutputY;
-	
-		//adjust speed based on speed error - set motor power
-		//power x = wheel set 1
-		//power y = wheel set 2
-		
-		/*Serial.print("power x: ");
-		Serial.println(power_x);
-		Serial.print("power y: ");
-		Serial.println(power_y);*/
-		
-		double power1 = power_x / sqrt(2) - power_y / sqrt(2);
-		double power2 = power_y / sqrt(2) + power_x / sqrt(2);
-		double power3 = power_y / sqrt(2) - power_x / sqrt(2);
-		double power4 = -1 * power_x / sqrt(2) - power_y / sqrt(2);
-		/*Serial.print("power 1: ");
-		Serial.println(power1);
-		Serial.print("power 2: ");
-		Serial.println(power2);
-		Serial.print("power 3: ");
-		Serial.println(power3);
-		Serial.print("power 4: ");
-		Serial.println(power4);*/
+		//get target x and y velocity
+		double targetXVel = abs(posKP * xError) > maxSpeed ? maxSpeed : posKP * xError;
+		double targetYVel = abs(posKP * yError) > maxSpeed ? maxSpeed : posKP * yError;
+
+		//get xVel and yVel error
+		double xVelError = targetXVel - currentXVel;
+		double yVelError = targetYVel - currentYVel;
+
+		//get target x and y power
+		double xPower = abs(xVelError * velKP) > MAX_P ? MAX_P : xVelError * velKP;
+		double yPower = abs(yVelError * velKP) > MAX_P ? MAX_P : yVelError * velKP;
+
+		double power1 = xPower / sqrt(2) - yPower / sqrt(2);
+		double power2 = yPower / sqrt(2) + xPower / sqrt(2);
+		double power3 = yPower / sqrt(2) - xPower / sqrt(2);
+		double power4 = -xPower / sqrt(2) - yPower / sqrt(2);
 
 		motor1.setSpeed(abs(power1) * 100);
 		motor2.setSpeed(abs(power2) * 100);
@@ -394,6 +343,7 @@ void Drive::drive(int x, int y, int max_speed)
 	Serial.println("END");
 	
 	//Update global current position variables + correct for current robot angle
+	//what the heck is this?
 	currentXPos += xCurrent * cos(totalDeg * M_PI / 180);
 	currentYPos += yCurrent * cos(totalDeg * M_PI / 180);
 	
