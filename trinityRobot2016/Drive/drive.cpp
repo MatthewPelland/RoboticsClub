@@ -45,58 +45,76 @@ Drive::Drive()
 	currentXPos = 0; //current x
 	currentYPos = 0; //current y
 	totalDeg = 0; //total degrees the robot has turned from its initial position
+
+	//encoder Interrupts
+	attachInterrupt(digitalPinToInterrupt(ENCODER_PIN1A), updateEncoder1HIGH, RISING);
+	attachInterrupt(digitalPinToInterrupt(ENCODER_PIN1A), updateEncoder1LOW, FALLING);
+
+	attachInterrupt(digitalPinToInterrupt(ENCODER_PIN2A), updateEncoder2HIGH, RISING);
+	attachInterrupt(digitalPinToInterrupt(ENCODER_PIN2A), updateEncoder2LOW, FALLING);
+
+	attachInterrupt(digitalPinToInterrupt(ENCODER_PIN3A), updateEncoder3HIGH, RISING);
+	attachInterrupt(digitalPinToInterrupt(ENCODER_PIN3A), updateEncoder3LOW, FALLING);
+
+	attachInterrupt(digitalPinToInterrupt(ENCODER_PIN4A), updateEncoder4HIGH, RISING);
+	attachInterrupt(digitalPinToInterrupt(ENCODER_PIN4A), updateEncoder4LOW, FALLING);
 }
 
 //updates the encoder value of the specified encoder
 //num 0, 1 - x axis
 //num 2, 3 - y axis
-void Drive::updateEncoder(int encoderNum) {
-	int encoderPinA = ENCODER_PIN4A;
-	int encoderPinB = ENCODER_PIN4B;
-	
-	if(encoderNum == 0){
-		encoderPinA = ENCODER_PIN1A;
-		encoderPinB = ENCODER_PIN1B;
-	} else if(encoderNum == 1){
-		encoderPinA = ENCODER_PIN2A;
-		encoderPinB = ENCODER_PIN2B;
-	} else if(encoderNum == 2){
-		encoderPinA = ENCODER_PIN3A;
-		encoderPinB = ENCODER_PIN3B;
-	}
-		
-	currentEncoder[encoderNum] = digitalRead(encoderPinA);
-	currentEncoder[encoderNum + 4] = digitalRead(encoderPinB);
-
-	if(lastEncoder[encoderNum] != currentEncoder[encoderNum]){
-		if(currentEncoder[encoderNum] == currentEncoder[encoderNum + 4]){
-			encoderValue[encoderNum]++;
-		} else {
-			encoderValue[encoderNum]--;
-		}
-	} else if(lastEncoder[encoderNum + 4]  != currentEncoder[encoderNum + 4]){
-		if(currentEncoder[encoderNum] == currentEncoder[encoderNum + 4]){
-			encoderValue[encoderNum]--;
-		} else {
-			encoderValue[encoderNum]++;
-		}
-	}
-	/*if (lastEncoder[encoderNum] == LOW && currentEncoder[encoderNum] == HIGH) {
-		if(currentEncoder[encoderNum + 4] == LOW){
-			encoderValue[encoderNum]--;
-		} else {
-			encoderValue[encoderNum]++;
-		}
-		
-	}*/
-	lastEncoder[encoderNum] = currentEncoder[encoderNum];
-	lastEncoder[encoderNum + 4] = currentEncoder[encoderNum + 4];
-	
-	/*Serial.print("encoderValue ");
-	Serial.print(encoderNum);
-	Serial.print("= ");
-	Serial.println(encoderValue[encoderNum]);*/
+void Drive::updateEncoder1HIGH() {		
+	if digitalRead(ENCODER_PIN1B) == HIGH
+		encoderValue[0] ++;
+	else
+		encoderValue[0] --;
 }
+void Drive::updateEncoder1LOW() {
+	if digitalRead(ENCODER_PIN1B) == LOW
+		encoderValue[0] ++;
+	else
+		encoderValue[0] --;
+}
+
+void Drive::updateEncoder2HIGH() {
+	if digitalRead(ENCODER_PIN2B) == HIGH
+		encoderValue[0] ++;
+	else
+		encoderValue[0] --;
+}
+void Drive::updateEncoder2LOW() {
+	if digitalRead(ENCODER_PIN2B) == LOW
+		encoderValue[0] ++;
+	else
+		encoderValue[0] --;
+}
+
+void Drive::updateEncoder3HIGH() {
+	if digitalRead(ENCODER_PIN3B) == HIGH
+		encoderValue[0] ++;
+	else
+		encoderValue[0] --;
+}
+void Drive::updateEncoder3LOW() {
+	if digitalRead(ENCODER_PIN3B) == LOW
+		encoderValue[0] ++;
+	else
+		encoderValue[0] --;
+}
+
+void Drive::updateEncoder4HIGH() {
+	if digitalRead(ENCODER_PIN4B) == HIGH
+		encoderValue[0] ++;
+	else
+		encoderValue[0] --;
+}
+void Drive::updateEncoder4LOW() {
+	if digitalRead(ENCODER_PIN4B) == LOW
+		encoderValue[0] ++;
+	else
+		encoderValue[0] --;
+}
+
 
 //update the current time and last time
 void Drive::updateTime(){
@@ -280,13 +298,7 @@ void Drive::drive(int x, int y, int max_speed)
 	{
 		//Update Current Position
 		updateTime();
-		//updateInRoom();
-		
-		for(int i = 0; i < 4; i++)
-			updateEncoder(i);
-		xCurrent = encoderToCm(encoderValue[0]) - encoderToCm(initialEnc[0]);
-		yCurrent = encoderToCm(encoderValue[2]) - encoderToCm(initialEnc[2]);
-		
+		//updateInRoom();	
 		//Serial.print("xCurrent=");
 		//Serial.println(xCurrent);
 		//Serial.print("yCurrent=");
@@ -443,8 +455,6 @@ void Drive::turn(int degrees, int max_speed){
 		//Update Current Position
 		updateTime();
 		updateInRoom();
-		for(int i = 0; i < 4; i++)
-			updateEncoder(i);
 		current = encoderToCm(encoderValue[0]) - encoderToCm(initialEnc[0]);
 
 		//FIND TARGET VELOCITY (LINEAR (?))
@@ -523,7 +533,6 @@ void Drive::go(int speed1, int speed2, int speed3, int speed4){
 		motor4.run(FORWARD);
 		
 		for(int i = 0; i < 10000; i++)
-			updateEncoder(0);
 		
 		motor1.run(RELEASE);
 		motor2.run(RELEASE);

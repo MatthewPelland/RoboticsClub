@@ -49,6 +49,14 @@ class Drive {
 	void updateInRoom();
     int cmToEncoder(int cm);
     int encoderToCm(int encoder);
+	void updateEncoder1HIGH;
+	void updateEncoder1LOW;
+	void updateEncoder2HIGH;
+	void updateEncoder2LOW;
+	void updateEncoder3HIGH;
+	void updateEncoder3LOW;
+	void updateEncoder4HIGH;
+	void updateEncoder4LOW;
 	double getLinearSpeedEncoder(char axis);
 	double getAngularSpeedEncoder(char axis);
 	double getSpeedAccel(char axis, double vel);
