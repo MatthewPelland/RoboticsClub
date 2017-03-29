@@ -456,32 +456,76 @@ void Drive::turn(int degrees, int max_speed){
 	Serial.print(1);
 }
 
-void Drive::go(int speed1, int speed2, int speed3, int speed4){
-		Serial.print("1.encoderValue ");
-		Serial.print(1);
-		Serial.print("= ");
-		Serial.println(encoderValue[0]);
-		
-		motor1.setSpeed(speed1);
-		motor2.setSpeed(speed2);
-		motor3.setSpeed(speed3);
-		motor4.setSpeed(speed4);
-		
-		motor1.run(FORWARD);
-		motor2.run(FORWARD);
-		motor3.run(FORWARD);
-		motor4.run(FORWARD);
-		
-		for(int i = 0; i < 10000; i++)
-			updateEncoder(0);
-		
-		motor1.run(RELEASE);
-		motor2.run(RELEASE);
-		motor3.run(RELEASE);
-		motor4.run(RELEASE);
-		
-		Serial.print("2.encoderValue ");
-		Serial.print(1);
-		Serial.print("= ");
-		Serial.println(encoderValue[0]);
+void Drive::go(double xTarget, double yTarget) {
+	double xError = xTarget - currentXPos;
+	double yError = yTarget - currentYPos;
+	double angleDelta = 0;
+	double epsilon = 1;
+	powers = { 200, 200, 200, 200 };
+
+	while (xError > epsilon || yError > epsilon) {
+		updateTime();
+		updateEncoder();
+		double currentXVel = getLinearSpeedEncoder('x');
+		double currentYVel = getLinearSpeedEncoder('y');
+		currentXPos += currentXVel * (time - lastTime);
+		currentYPos += currentYVel * (time - lastTime);
+		xError = xTarget - currentXPos;
+		yError = yTarget - currentYPos;
+
+		if (xError == 0)
+			xPower = 0;
+		else if (xError > 0)
+			xPower = 200;
+		else
+			xPower = -200;
+		if (yError == 0)
+			yPower = 0;
+		else if (yError > 0)
+			yPower = 200;
+		else
+			yPower = -200;
+
+		powers[0] = power_x / sqrt(2) - power_y / sqrt(2);
+		powers[1] = power_y / sqrt(2) + power_x / sqrt(2);
+		powers[2] = power_y / sqrt(2) - power_x / sqrt(2);
+		powers[3] = -1 * power_x / sqrt(2) - power_y / sqrt(2);
+		angleDelta += getAngularSpeedEncoder() * (time - lastTime);
+
+		if (angleDelta > 0)
+			for (int i = 0; i < 4; i++)
+				powers[i] += 20;
+		else if (angleDelta < 0)
+			for (int i = 0; i < 4; i++)
+				powers[i] -= 20;
+
+		motor1.setSpeed(abs(powers[0]) * 100);
+		motor2.setSpeed(abs(powers[1]) * 100);
+		motor3.setSpeed(abs(powers[2]) * 100);
+		motor4.setSpeed(abs(powers[3]) * 100);
+
+		if (powers[0] < 0)
+			motor1.run(BACKWARD);
+		else
+			motor1.run(FORWARD);
+		if (powers[1] < 0)
+			motor2.run(BACKWARD);
+		else
+			motor2.run(FORWARD);
+		if (powers[2] < 0)
+			motor3.run(BACKWARD);
+		else
+			motor3.run(FORWARD);
+		if (powers[3] < 0)
+			motor4.run(BACKWARD);
+		else
+			motor4.run(FORWARD);
+	}
+
+	motor1.run(RELEASE);
+	motor2.run(RELEASE);
+	motor3.run(RELEASE);
+	motor4.run(RELEASE);
+	Serial.println(currentXPos);
+
 }

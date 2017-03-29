@@ -37,6 +37,8 @@ class Drive {
 	AF_DCMotor motor3 = AF_DCMotor(3);
 	AF_DCMotor motor4 = AF_DCMotor(4);
 	
+
+	double angle;
 	int time, lastTime, totalDeg;
     int encoderValue[4];
     int lastEncoder[8];
