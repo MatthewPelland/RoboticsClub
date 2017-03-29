@@ -22,6 +22,18 @@
  * color sensor - detect crossing a white line [done] ?
  * 
  */
+ 
+ int tickCount[4];
+
+void updateEncoder1HIGH(void);
+void updateEncoder1LOW(void);
+void updateEncoder2HIGH(void);
+void updateEncoder2LOW(void);
+void updateEncoder3HIGH(void);
+void updateEncoder3LOW(void);
+void updateEncoder4HIGH(void);
+void updateEncoder4LOW(void);
+
 Drive::Drive()
 {
 	color = Adafruit_TCS34725(TCS34725_INTEGRATIONTIME_700MS, TCS34725_GAIN_1X); //color sensor object
@@ -33,74 +45,95 @@ Drive::Drive()
 	//motor4 = AF_DCMotor(4);
 	
 	for(int i = 0; i < 4; i++){
-		currentEncoder[i] = 0; //current encoder ticks
+		currentEncoder[i] = 0; //current encoder value (since last checked)
+		lastEncoder[i] = 0; //last encoder value
+		tickCount[i] = 0; //constantly updated encoder value
 	}
-	for(int i = 0; i < 8; i++){
-		lastEncoder[i] = 0; //last raw encoder value
-		encoderValue[i] = 0; //raw encoder value
-	}
+	
 	time = 0; //time since the program began running
 	lastTime = 0; //previous time
 	inRoom = false; //whether we are in a room
 	currentXPos = 0; //current x
 	currentYPos = 0; //current y
 	totalDeg = 0; //total degrees the robot has turned from its initial position
+	
+	//encoder Interrupts
+ 	attachInterrupt(digitalPinToInterrupt(ENCODER_PIN1A), updateEncoder1HIGH, RISING);
+ 	attachInterrupt(digitalPinToInterrupt(ENCODER_PIN1A), updateEncoder1LOW, FALLING);
+ 
+ 	attachInterrupt(digitalPinToInterrupt(ENCODER_PIN2A), updateEncoder2HIGH, RISING);
+ 	attachInterrupt(digitalPinToInterrupt(ENCODER_PIN2A), updateEncoder2LOW, FALLING);
+ 
+ 	attachInterrupt(digitalPinToInterrupt(ENCODER_PIN3A), updateEncoder3HIGH, RISING);
+ 	attachInterrupt(digitalPinToInterrupt(ENCODER_PIN3A), updateEncoder3LOW, FALLING);
+ 
+ 	attachInterrupt(digitalPinToInterrupt(ENCODER_PIN4A), updateEncoder4HIGH, RISING);
+ 	attachInterrupt(digitalPinToInterrupt(ENCODER_PIN4A), updateEncoder4LOW, FALLING);
 }
 
 //updates the encoder value of the specified encoder
 //num 0, 1 - x axis
 //num 2, 3 - y axis
-void Drive::updateEncoder(int encoderNum) {
-	int encoderPinA = ENCODER_PIN4A;
-	int encoderPinB = ENCODER_PIN4B;
-	
-	if(encoderNum == 0){
-		encoderPinA = ENCODER_PIN1A;
-		encoderPinB = ENCODER_PIN1B;
-	} else if(encoderNum == 1){
-		encoderPinA = ENCODER_PIN2A;
-		encoderPinB = ENCODER_PIN2B;
-	} else if(encoderNum == 2){
-		encoderPinA = ENCODER_PIN3A;
-		encoderPinB = ENCODER_PIN3B;
-	}
-		
-	currentEncoder[encoderNum] = digitalRead(encoderPinA);
-	currentEncoder[encoderNum + 4] = digitalRead(encoderPinB);
-
-	if(lastEncoder[encoderNum] != currentEncoder[encoderNum]){
-		if(currentEncoder[encoderNum] == currentEncoder[encoderNum + 4]){
-			encoderValue[encoderNum]++;
-		} else {
-			encoderValue[encoderNum]--;
-		}
-	} else if(lastEncoder[encoderNum + 4]  != currentEncoder[encoderNum + 4]){
-		if(currentEncoder[encoderNum] == currentEncoder[encoderNum + 4]){
-			encoderValue[encoderNum]--;
-		} else {
-			encoderValue[encoderNum]++;
-		}
-	}
-	/*if (lastEncoder[encoderNum] == LOW && currentEncoder[encoderNum] == HIGH) {
-		if(currentEncoder[encoderNum + 4] == LOW){
-			encoderValue[encoderNum]--;
-		} else {
-			encoderValue[encoderNum]++;
-		}
-		
-	}*/
-	lastEncoder[encoderNum] = currentEncoder[encoderNum];
-	lastEncoder[encoderNum + 4] = currentEncoder[encoderNum + 4];
-	
-	/*Serial.print("encoderValue ");
-	Serial.print(encoderNum);
-	Serial.print("= ");
-	Serial.println(encoderValue[encoderNum]);*/
+void updateEncoder1HIGH() {
+	if(digitalRead(ENCODER_PIN1B) == HIGH)
+		tickCount[0] ++;
+	else
+		tickCount[0] --;
 }
+void updateEncoder1LOW() {
+	if(digitalRead(ENCODER_PIN1B) == LOW)
+		tickCount[0] ++;
+	else
+		tickCount[0] --;
+}
+
+void updateEncoder2HIGH() {
+	if(digitalRead(ENCODER_PIN2B) == HIGH)
+		tickCount[1] ++;
+	else
+		tickCount[1] --;
+}
+void updateEncoder2LOW() {
+	if(digitalRead(ENCODER_PIN2B) == LOW)
+		tickCount[1] ++;
+	else
+		tickCount[1] --;
+}
+
+void updateEncoder3HIGH() {
+	if(digitalRead(ENCODER_PIN3B) == HIGH)
+		tickCount[2] ++;
+	else
+		tickCount[2] --;
+}
+void updateEncoder3LOW() {
+	if(digitalRead(ENCODER_PIN3B) == LOW)
+		tickCount[2] ++;
+	else
+		tickCount[2] --;
+}
+
+void updateEncoder4HIGH() {
+	if(digitalRead(ENCODER_PIN4B) == HIGH)
+		tickCount[3] ++;
+	else
+		tickCount[3] --;
+}
+void updateEncoder4LOW() {
+	if(digitalRead(ENCODER_PIN4B) == LOW)
+		tickCount[0] ++;
+	else
+		tickCount[0] --;
+}
+
 
 //update the current time and last time
 void Drive::updateTime(){
 	lastTime = time;
+	for(int i = 0; i < 4; i++){
+		lastEncoder[i] = currentEncoder[i];
+		currentEncoder[i] = tickCount[i];
+	}
 	time = millis();
 }
 
@@ -110,15 +143,20 @@ void Drive::updateTime(){
  * @return instantaneous linear speed
  */
 double Drive::getLinearSpeedEncoder(char axis){ 
-	int encoderNum = 0;
+	double deltas[4];
+	double speeds[4];
+	for(int i = 0; i < 4; i ++){
+		deltas[i] = encoderToCm(currentEncoder[i] - lastEncoder[i]);
+		if (time - lastTime == 0) {
+			speeds[i] = 0;
+		} else {
+			speeds[i] = deltas[i] / (time - lastTime);
+		}
+	}
 	if(axis == 'x')
-		encoderNum = 0;
+		return speeds[0]*sqrt(2) + speeds[1]*sqrt(2) - speeds[2]*sqrt(2) - speeds[3]*sqrt(2);
 	else
-		encoderNum = 2;
-	int lastPos = encoderToCm(lastEncoder[encoderNum]);
-	int pos = encoderToCm(currentEncoder[encoderNum]);
-	
-	return (pos - lastPos) / (time - lastTime) * sqrt(2);
+		return -speeds[0]*sqrt(2) + speeds[1]*sqrt(2) + speeds[2]*sqrt(2) - speeds[3]*sqrt(2);
 }
 
 double Drive::getAngularSpeedEncoder(char axis){ 
@@ -160,10 +198,10 @@ double Drive::getSpeedGyro(){ //change to angular velocity
  * @param cm: length in centimeters
  * @return encoder ticks
  */
-int Drive::cmToEncoder(int cm){ 
+double Drive::cmToEncoder(int cm){ 
 	double circ = 2 * M_PI * WHEEL_RADIUS;
 		
-	return cm / circ * 64; //or 16??
+	return (double) cm / circ * 1024; 
 }
 
 /**
@@ -171,10 +209,10 @@ int Drive::cmToEncoder(int cm){
  * @param encoder: encoder ticks
  * @return length in centimeters
  */
-int Drive::encoderToCm(int encoder){ 
+double Drive::encoderToCm(int ticks){ 
 	double circ = 2 * M_PI * WHEEL_RADIUS;
 	
-	return encoder / 64 * circ;
+	return (double) ticks / 1024 * circ;
 }
 
 /**
@@ -256,7 +294,7 @@ void Drive::drive(int x, int y, int max_speed)
 	Serial.println(y);
 	Serial.println("---");*/
 	
-	int initialEnc[] = { encoderValue[0], encoderValue[1], encoderValue[2], encoderValue[3] };
+	int initialEnc[] = { tickCount[0], tickCount[1], tickCount[2], tickCount[3] };
 	
 	//initially 0
 	double vAccelX = 0;
@@ -264,28 +302,30 @@ void Drive::drive(int x, int y, int max_speed)
 	double vEnc = 0;
   
 	//PID constants !!FIND THESE!!
-	double posKP = 0.5;	
+	double posKP = 100;	
 	double posKI = 0;
 	double posKD = 0;
   
-	double velKP = 0.5;
+	double velKP = 5;
 	double velKI = 0;
 	double velKD = 0;
 	
 	const double MAX_P = 255; //max motor power
 	
+	double xError = x - currentXPos;
+	double yError = y - currentYPos;
+	double epsilon = 1;
+	
 		
 	//calculate and correct for error n number of times
-	for (int n = 0; n < 100; n++)
+	while(!(abs(xError) < epsilon && abs(yError) < epsilon))
 	{
-		//Update Current Position
+		/*//Update Current Position
 		updateTime();
 		//updateInRoom();
 		
-		for(int i = 0; i < 4; i++)
-			updateEncoder(i);
-		xCurrent = encoderToCm(encoderValue[0]) - encoderToCm(initialEnc[0]);
-		yCurrent = encoderToCm(encoderValue[2]) - encoderToCm(initialEnc[2]);
+		xCurrent = encoderToCm(currentEncoder[0]) - encoderToCm(initialEnc[0]);
+		yCurrent = encoderToCm(currentEncoder[2]) - encoderToCm(initialEnc[2]);
 		
 		//Serial.print("xCurrent=");
 		//Serial.println(xCurrent);
@@ -345,7 +385,7 @@ void Drive::drive(int x, int y, int max_speed)
 		/*Serial.print("power x: ");
 		Serial.println(power_x);
 		Serial.print("power y: ");
-		Serial.println(power_y);*/
+		Serial.println(power_y);
 		
 		double power1 = power_x / sqrt(2) - power_y / sqrt(2);
 		double power2 = power_y / sqrt(2) + power_x / sqrt(2);
@@ -358,7 +398,7 @@ void Drive::drive(int x, int y, int max_speed)
 		Serial.print("power 3: ");
 		Serial.println(power3);
 		Serial.print("power 4: ");
-		Serial.println(power4);*/
+		Serial.println(power4);
 
 		motor1.setSpeed(abs(power1) * 100);
 		motor2.setSpeed(abs(power2) * 100);
@@ -380,12 +420,73 @@ void Drive::drive(int x, int y, int max_speed)
 		if(power4 < 0)
 			motor4.run(BACKWARD);
 		else
+			motor4.run(FORWARD);*/
+			
+		//Update Current Position
+		updateTime();
+		//updateInRoom();
+		
+		//updateCurrent position and velocity
+		double currentXVel = getLinearSpeedEncoder('x');
+		double currentYVel = getLinearSpeedEncoder('y');
+
+		currentXPos += currentXVel * (time - lastTime);
+		currentYPos += currentYVel * (time - lastTime);
+
+		//get x and y error
+		xError = x - currentXPos;
+		yError = y - currentYPos;
+
+		//get target x and y velocity
+		double targetXVel = abs(posKP * xError) > max_speed ? max_speed : posKP * xError;
+		double targetYVel = abs(posKP * yError) > max_speed ? max_speed : posKP * yError;
+
+		//get xVel and yVel error
+		double xVelError = targetXVel - currentXVel;
+		double yVelError = targetYVel - currentYVel;
+
+		//get target x and y power
+		double xPower = abs(xVelError * velKP) > MAX_P ? MAX_P : xVelError * velKP;
+		double yPower = abs(yVelError * velKP) > MAX_P ? MAX_P : yVelError * velKP;
+
+		double power1 = xPower - yPower;
+		double power2 = yPower + xPower;
+		double power3 = yPower - xPower;
+		double power4 = -xPower - yPower;
+
+		Serial.println(power2);
+		
+		motor1.setSpeed(abs(power1) * 100 > 255 ? 255 : abs(power1) * 100);
+		motor2.setSpeed(abs(power2) * 100 > 255 ? 255 : abs(power2) * 100);
+		motor3.setSpeed(abs(power3) * 100 > 255 ? 255 : abs(power3) * 100);
+		motor4.setSpeed(abs(power4) * 100 > 255 ? 255 : abs(power4) * 100);
+
+		/*motor1.setSpeed(abs(power1) * 100);
+		motor2.setSpeed(abs(power2) * 100);
+		motor3.setSpeed(abs(power3) * 100);
+		motor4.setSpeed(abs(power4) * 100);*/
+		
+		if(power1 < 0)
+			motor1.run(BACKWARD);
+		else
+			motor1.run(FORWARD);
+		if(power2 < 0)
+			motor2.run(BACKWARD);
+		else
+			motor2.run(FORWARD);
+		if(power3 < 0)
+			motor3.run(BACKWARD);
+		else
+			motor3.run(FORWARD);
+		if(power4 < 0)
+			motor4.run(BACKWARD);
+		else
 			motor4.run(FORWARD);
 	}
 	Serial.print("encoderValue ");
 	Serial.print(1);
 	Serial.print("= ");
-	Serial.println(encoderValue[0]);
+	Serial.println(tickCount[0]);
 	
 	motor1.run(RELEASE);
 	motor2.run(RELEASE);
@@ -394,12 +495,12 @@ void Drive::drive(int x, int y, int max_speed)
 	Serial.println("END");
 	
 	//Update global current position variables + correct for current robot angle
-	currentXPos += xCurrent * cos(totalDeg * M_PI / 180);
-	currentYPos += yCurrent * cos(totalDeg * M_PI / 180);
+	//currentXPos += xCurrent * cos(totalDeg * M_PI / 180);
+	//currentYPos += yCurrent * cos(totalDeg * M_PI / 180);
 	
 	//Print whether we are in the room, and current position
 	//Serial.print(inRoom); REMEMBER TO UNCOMMENT ***************
-	//Serial.print((int) currentXPos);
+	Serial.print((int) currentXPos);
 	//Serial.print((int) currentYPos);
 }
 
@@ -414,7 +515,7 @@ void Drive::turn(int degrees, int max_speed){
 	
 	//current pos
 	int current = 0;
-	int initialEnc[] = { encoderValue[0], encoderValue[1], encoderValue[2], encoderValue[3] };
+	int initialEnc[] = { tickCount[0], tickCount[1], tickCount[2], tickCount[3] };
 	
 	//save initial values
 	int initialLastEnc[] = { lastEncoder[0], lastEncoder[1], lastEncoder[2], lastEncoder[3], lastEncoder[6], 
@@ -443,9 +544,8 @@ void Drive::turn(int degrees, int max_speed){
 		//Update Current Position
 		updateTime();
 		updateInRoom();
-		for(int i = 0; i < 4; i++)
-			updateEncoder(i);
-		current = encoderToCm(encoderValue[0]) - encoderToCm(initialEnc[0]);
+
+		current = encoderToCm(tickCount[0]) - encoderToCm(initialEnc[0]);
 
 		//FIND TARGET VELOCITY (LINEAR (?))
 		double input, output, setpoint;
@@ -496,7 +596,7 @@ void Drive::turn(int degrees, int max_speed){
 	
 	//turning is not included in normal encoder values -reset
 	for(int i = 0; i < 4; i++)
-		encoderValue[i] = initialEnc[i];
+		tickCount[i] = initialEnc[i];
 	for(int i = 0; i < 8; i++){
 		lastEncoder[i] = initialLastEnc[i];
 		currentEncoder[i] = initialCEnc[i];
@@ -506,32 +606,34 @@ void Drive::turn(int degrees, int max_speed){
 	Serial.print(1);
 }
 
-void Drive::go(int speed1, int speed2, int speed3, int speed4){
-		Serial.print("1.encoderValue ");
-		Serial.print(1);
-		Serial.print("= ");
-		Serial.println(encoderValue[0]);
-		
-		motor1.setSpeed(speed1);
-		motor2.setSpeed(speed2);
-		motor3.setSpeed(speed3);
-		motor4.setSpeed(speed4);
+void Drive::go(double xTarget, double yTarget){	
+	double xError = xTarget - currentXPos;
+	double yError = yTarget - currentYPos;
+	double epsilon = 1;
+		motor2.setSpeed(200);
+		motor3.setSpeed(200);
+		motor4.setSpeed(200);
+		motor1.setSpeed(200);
 		
 		motor1.run(FORWARD);
 		motor2.run(FORWARD);
-		motor3.run(FORWARD);
-		motor4.run(FORWARD);
+		motor3.run(BACKWARD);
+		motor4.run(BACKWARD);
 		
-		for(int i = 0; i < 10000; i++)
-			updateEncoder(0);
+		while (xError > epsilon || yError > epsilon) {
+			updateTime();
+			double currentXVel = getLinearSpeedEncoder('x');
+			double currentYVel = getLinearSpeedEncoder('y');
+			currentXPos += currentXVel * (time - lastTime);
+			currentYPos += currentYVel * (time - lastTime);
+			xError = xTarget - currentXPos;
+			yError = yTarget - currentYPos;
+		}
 		
 		motor1.run(RELEASE);
 		motor2.run(RELEASE);
 		motor3.run(RELEASE);
 		motor4.run(RELEASE);
-		
-		Serial.print("2.encoderValue ");
-		Serial.print(1);
-		Serial.print("= ");
-		Serial.println(encoderValue[0]);
+		Serial.println(currentXPos);
+
 }
