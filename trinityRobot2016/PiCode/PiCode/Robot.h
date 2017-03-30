@@ -11,6 +11,7 @@
 #include "ir.h"
 #include "gyro.h"
 #include "constants.h"
+#include <fstream>
 
 
 
@@ -54,7 +55,7 @@ struct gridVal {
 	double cellType;
 	gridVal() {
 		timesScanned = 0;
-		cellType = 0;
+		cellType = -1;
 	}
 };
 
@@ -62,7 +63,7 @@ class Robot {
 public:
     Robot(int level);
     ~Robot();
-    void update(); //this is where the magic happens  
+    bool update(); //this is where the magic happens  
 private:
 	int level; //level of the competition
 	Point currentPosCells; // robot's current pos
@@ -90,7 +91,10 @@ private:
 	Point safeZoneLocation;
 	std::chrono::high_resolution_clock::time_point currTime;
 	std::chrono::high_resolution_clock::time_point prevTime;
+	std::ofstream arduinoCommands;
 
+	void waitForDoneConfirmation();
+	void outputGrid();
 	void updateTime();
 	std::vector<Point> findAberrantMinimums(double sonarData[360], const double slope_threshold, const double aberration_size_threshold);
 	std::vector<Point> locateCandles(double sonarData[4][360]);
@@ -100,14 +104,13 @@ private:
 	Point findNextTarget(bool);
 	void computeDistanceField(Point target);
 	Point closestOpenCell(Point target);
+	int distanceToWall(int x, int y);
 	void moveTo(std::vector<Point>, bool takePictures); 
 	int createTargetPath(Point target, int thresholdDistance);
 	void extinguishCandle(Point target);
-	void pushBabyOutWindow();
 	std::vector<Point> Robot::findOpenNeighbors(Point currentPos);
-	double getAngularVelocity();
     double updateAngle(double timeDelta);
-	void returnToStart();
+	void routeToStart();
 	void goSaveBaby();
 	double distance(Point a, Point b);
 	std::vector<Point> checkForCradle(double sonarData[4][360]);
