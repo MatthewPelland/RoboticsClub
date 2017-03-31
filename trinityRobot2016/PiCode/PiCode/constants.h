@@ -22,4 +22,4 @@ constexpr int ARENALENGTH_CM = 244;
 constexpr int CELLSIZE_CM = 1;
 constexpr int ROBOT_DIAMETER_CM = 31;
 //big enough to hold entire maze no matter where we start
-constexpr int GRIDSIZE_CELLS = 5 * ARENALENGTH_CM / CELLSIZE_CM;
+#define GRIDSIZE_CELLS 5 * ARENALENGTH_CM / CELLSIZE_CM

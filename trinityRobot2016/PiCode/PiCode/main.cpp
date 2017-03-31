@@ -1,12 +1,14 @@
 #include <iostream>
 #include "Robot.h"
 int main() {
-	Robot robit;
-        wiringPiSetupGpio();
-        robit = Robot();
+//	Robot robit;
+//        wiringPiSetupGpio();
+        Robot robit;
+	robit = Robot();
+	robit.testGyro();
 //        digitalWrite(SOUNDLEDPIN, HIGH);
 
-        robit.outputGrid();
+//        robit.outputGrid();
 /*
         robit.moves.clear();
         robit.moves.push_back(Point(0, 20));

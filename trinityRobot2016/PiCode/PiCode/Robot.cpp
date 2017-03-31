@@ -2,26 +2,31 @@
 #include <string>
 #include <chrono>
 #include <iostream>
-typedef std::chrono::high_resolution_clock Clock;
 
+typedef std::chrono::high_resolution_clock Clock;
 
 
 Robot::Robot() {
 	std::cout << "HELLO";
+	fp = fopen("commands.txt", "w");
+	fprintf(fp, "DO YOU READ");
 	//for debugging
-	arduinoCommands.open("commands.txt");
-	this->level = 1;
+//	arduinoCommands.open("commands.txt");
+	level = 1;
 	angle = 0;
+	angVel = 0;
 	sensorDist_cm = 200; //maximum readable distance
 	moves = std::vector<Point>();
 	unextinguishedCandleCount = 0;
-	inRoom = true;
+	inRoom = 1;
+	startTime = Clock::now();
 	currTime = Clock::now();
 	prevTime = Clock::now();
 	safeZoneLocation = Point(-1, -1);
 	currentPosCells = Point(GRIDSIZE_CELLS / 2, GRIDSIZE_CELLS / 2);
-
+//
 	arduinoSerial = serialOpen("/dev/ttyACM0", 9600);
+	serialPrintf(arduinoSerial, "r 120\n");
 	if (level == 3) {
 		babySaved = false;
 		cradleFound = false;
@@ -35,18 +40,37 @@ Robot::Robot() {
 		babyObtained = true;
 		safeZoneFound = true;
 	}
-	for (int i = 0; i < GRIDSIZE_CELLS; i++)
+	grid = (gridVal**) malloc(sizeof(gridVal*) * GRIDSIZE_CELLS);
+	for (int i = 0; i < GRIDSIZE_CELLS; i++){
+		grid[i] = (gridVal*) malloc(sizeof(gridVal) * GRIDSIZE_CELLS);
 		for (int j = 0; j < GRIDSIZE_CELLS; j++)
 			grid[i][j] = gridVal();
+	}
+	fprintf(fp, "now distance field\n");
 
-    for (int i = 0; i < GRIDSIZE_CELLS; i++)
+	distanceField = (int**) malloc(sizeof(int*) * GRIDSIZE_CELLS);
+  	for (int i = 0; i < GRIDSIZE_CELLS; i++){
+		distanceField[i] = (int*)malloc(sizeof(int) * GRIDSIZE_CELLS);
 		memset(distanceField[i], -1, sizeof(int) * GRIDSIZE_CELLS);
-
-    initialScan();//align robot
-	serialPrintf(arduinoSerial, "z %d %d %d\n", 0, currentPosCells.x, currentPosCells.y);
-	arduinoCommands << "z " << 0 << " " << currentPosCells.x << " " << currentPosCells.y << "\n";
+	}
+	fprintf(fp, "bout to scan it up\n");
+  //  initialScan();//align robot
+//	serialPrintf(arduinoSerial, "z %d %d %d\n", 0, currentPosCells.x, currentPosCells.y);
+///	arduinoCommands << "z " << 0 << " " << currentPosCells.x << " " << currentPosCells.y << "\n";
 }
 
+void Robot::testGyro(){
+	updateTime();
+	for(int i = 0; i < 10000; i ++){
+		updateAngle(std::chrono::duration_cast<std::chrono::microseconds>(currTime - prevTime).count());
+		if(i % 100 == 0){
+			updateTime();
+			std::cout << std::chrono::duration_cast<std::chrono::milliseconds>(currTime - prevTime).count() << std::flush;
+		}
+	}
+	fclose(fp);
+}
+/*
 //Robot::~Robot() {
 //	arduinoCommands.close();
 //	for (int i = 0; i < GRIDSIZE_CELLS; i++) {
@@ -100,8 +124,8 @@ bool Robot::update() {
 	//	}
 	//}
 	//moveTo(moves);
-} 
-
+}
+*/
 //prevTime and currTime and std::chrono::time_points recorded in microseconds
 void Robot::updateTime() {
 	prevTime = currTime;
@@ -113,8 +137,10 @@ void Robot::initialScan() {
     double angleDelta = 0;
 	double sonarData[360];
     serialPrintf(arduinoSerial, "r 120\n");
-	arduinoCommands << "r 120\n";
+	//arduinoCommands << "r 120\n";
 	updateTime();
+	fprintf(fp, "starting loop");
+	fclose(fp);
     while (!serialDataAvail(arduinoSerial)) {
 		updateTime();
 		angleDelta += updateAngle((double)std::chrono::duration_cast<std::chrono::microseconds>(currTime - prevTime).count());
@@ -123,6 +149,8 @@ void Robot::initialScan() {
 		sonarData[(int)(angleDelta / (PI / 2.0) * 90) + 2 * 90] = sonic2.getDistance()+7;
 		sonarData[(int)(angleDelta / (PI / 2.0) * 90) + 3 * 90] = sonic3.getDistance()+15;
     }
+	fprintf(fp, "all done");
+	fclose(fp);
 	serialFlush(arduinoSerial);
     int mostPerpindicular = 0;
     int bestPerpindicularity = 10000000;
@@ -141,10 +169,10 @@ void Robot::initialScan() {
     serialPrintf(arduinoSerial, "r %d\n", mostPerpindicular - 120 < 180 \
 		 ? mostPerpindicular - 120 \
 		 : mostPerpindicular - 120 - 360);
-	arduinoCommands << "r " << (mostPerpindicular - 120 < 180 ? mostPerpindicular - 120 : mostPerpindicular - 120 - 360) << "\n";
+	//arduinoCommands << "r " << (mostPerpindicular - 120 < 180 ? mostPerpindicular - 120 : mostPerpindicular - 120 - 360) << "\n";
 	angle = 0;
 }
-
+/*
 //needs lots of edits once camera shit is figured out
 //refactor the shit out of this
 void Robot::scanSurroundings(bool ignoreCandles) {//double check that this one is right
@@ -163,7 +191,7 @@ void Robot::scanSurroundings(bool ignoreCandles) {//double check that this one i
 	memset(flameSensorData, -1, sizeof(int) * 360);
 	//void cameraData[360];
 	serialPrintf(arduinoSerial, "r 360\n");
-	arduinoCommands << "r 360\n";
+	//arduinoCommands << "r 360\n";
 	updateTime();
 	while (!serialDataAvail(arduinoSerial)) {
 		updateTime();
@@ -237,11 +265,11 @@ void Robot::scanSurroundings(bool ignoreCandles) {//double check that this one i
 
 	//2. unlitCandles
 	if (unlitCandles.size() > 0) {
-		for (int i = 0; i < unlitCandles.size(); i++) {
+		for (unsigned int i = 0; i < unlitCandles.size(); i++) {
 			if (grid[unlitCandles[i].x][unlitCandles[i].y].cellType != FLAME  
 				&& grid[unlitCandles[i].x][unlitCandles[i].y].cellType != CANDLE 
 				&& grid[unlitCandles[i].x][unlitCandles[i].y].cellType != EXTINGUISHED) {
-				grid[unlitCandles[i].x][unlitCandles[i].y].cellType == CANDLE;
+				grid[unlitCandles[i].x][unlitCandles[i].y].cellType = CANDLE;
 				unextinguishedCandleCount++;
 			}
 		}
@@ -249,7 +277,7 @@ void Robot::scanSurroundings(bool ignoreCandles) {//double check that this one i
 
 	//3. window
 	if (!babySaved && !safeZoneFound && windows.size() > 0) {
-		for (int i = 0; i < windows.size(); i++) {
+		for (unsigned int i = 0; i < windows.size(); i++) {
 			Point direction;
 			double turnAngle;
 			for (double j = 0; j < 2 * PI; j += PI / 2) {
@@ -262,7 +290,7 @@ void Robot::scanSurroundings(bool ignoreCandles) {//double check that this one i
 			moveTo(moves, true);
 			//determine which way to rotate wait that information is just straight from direction, fucking idiot.
 			serialPrintf(arduinoSerial, "r %d\n", turnAngle);
-			arduinoCommands << "r " << "turnAngle" << "\n";
+			//arduinoCommands << "r " << "turnAngle" << "\n";
 			waitForDoneConfirmation();
 			bool isSafeZone = checkImageForSafeZone();
 			if (isSafeZone){
@@ -270,17 +298,17 @@ void Robot::scanSurroundings(bool ignoreCandles) {//double check that this one i
 				safeZoneLocation = windows[i];
 				if (babyObtained) {
 					serialPrintf(arduinoSerial, "w 10\n");
-					arduinoCommands << "w 10\n";
+					//arduinoCommands << "w 10\n";
 					waitForDoneConfirmation();
 					babySaved = true;
 				}
 				serialPrintf(arduinoSerial, "r %d\n", -turnAngle);
-				arduinoCommands << "r " << -turnAngle << "\n";
+				//arduinoCommands << "r " << -turnAngle << "\n";
 				break;
 			}
 			else {
 				serialPrintf(arduinoSerial, "r %d\n", -turnAngle);
-				arduinoCommands << "r " << turnAngle << "\n";
+				//arduinoCommands << "r " << turnAngle << "\n";
 				waitForDoneConfirmation();
 			}
 		}
@@ -291,7 +319,7 @@ void Robot::scanSurroundings(bool ignoreCandles) {//double check that this one i
 		//DO LOTS OF SHIT IN HERE LIKE GO SAVE THE BABY
 		//make this a function dummkopf
 		int moveDistance = 5;//cm after done getting baby
-		for (int i = 0; i < cradles.size(); i++) {
+		for (unsigned int i = 0; i < cradles.size(); i++) {
 			Point direction;
 			double turnAngle;
 			for (double j = 0; j < 2 * PI; j += PI / 2) {
@@ -304,19 +332,19 @@ void Robot::scanSurroundings(bool ignoreCandles) {//double check that this one i
 			moveTo(moves, true);
 			//determine which way to rotate wait that information is just straight from direction, fucking idiot.
 			serialPrintf(arduinoSerial, "r %d\n", turnAngle);
-			arduinoCommands << "r " << turnAngle << "\n";
+			//arduinoCommands << "r " << turnAngle << "\n";
 			waitForDoneConfirmation();
 			bool isCradle = checkImageForCradle();
 			if (isCradle) {
 				digitalWrite(VISIONLEDPIN, HIGH);
 				serialPrintf(arduinoSerial, "c %d\n", moveDistance);
-				arduinoCommands << "c " << moveDistance << "\n";
+				//arduinoCommands << "c " << moveDistance << "\n";
 				waitForDoneConfirmation();
 				serialPrintf(arduinoSerial, "r %d\n", -turnAngle);
-				arduinoCommands << "r " << -turnAngle << "\n";
+				//arduinoCommands << "r " << -turnAngle << "\n";
 				waitForDoneConfirmation();
 				serialPrintf(arduinoSerial, "z 0 %d %d\n", safeZoneLocation.x + direction.x * moveDistance, safeZoneLocation.y + direction.y * moveDistance);
-				arduinoCommands << "z " << safeZoneLocation.x + direction.x * moveDistance << safeZoneLocation.y + direction.y * moveDistance << "\n";
+				//arduinoCommands << "z " << safeZoneLocation.x + direction.x * moveDistance << safeZoneLocation.y + direction.y * moveDistance << "\n";
 				babyObtained = true;
 				digitalWrite(VISIONLEDPIN, LOW);
 				if (safeZoneFound) {
@@ -327,7 +355,7 @@ void Robot::scanSurroundings(bool ignoreCandles) {//double check that this one i
 			}
 			else {
 				serialPrintf(arduinoSerial, "r %d\n", -turnAngle);
-				arduinoCommands << "r " << turnAngle << "\n";
+				//arduinoCommands << "r " << turnAngle << "\n";
 				waitForDoneConfirmation();
 			}
 		}
@@ -349,6 +377,8 @@ bool Robot::checkImageForSafeZone(){
 
 //good
 void Robot::updateGridVal(int cellX, int cellY, int type) {
+	if(cellX > GRIDSIZE_CELLS || cellX < 0 || cellY < 0 || cellY > GRIDSIZE_CELLS)
+		return;
 	grid[cellX][cellY].cellType = (grid[cellX][cellY].cellType*grid[cellX][cellY].timesScanned + type) / (grid[cellX][cellY].timesScanned++ + 1);
 }
 
@@ -369,7 +399,7 @@ int Robot::createTargetPath(Point target, int thresholdDistance) {
 	for (int reverseCount = 0; reverseCount < distanceField[target.x][target.y]; reverseCount++) {
 		std::vector<Point> openNeighbors;
 		openNeighbors = findOpenNeighbors(currentSquare);
-		for (int i = 0; i < openNeighbors.size(); i++) {
+		for (unsigned int i = 0; i < openNeighbors.size(); i++) {
 			//if the neighbor is one square closer to robot than the current square
 			if (distanceField[openNeighbors[i].x][openNeighbors[i].y] == currentDist - 1) {
 				currentDist = distanceField[openNeighbors[i].x][openNeighbors[i].y];
@@ -405,7 +435,7 @@ Point Robot::findNextTarget(bool ignoreCandles) {//This one's pretty fast
 		boundary.erase(boundary.begin());
 		std::vector<Point> openNeighbors;
 		openNeighbors = findOpenNeighbors(checking);
-		for (int i = 0; i < openNeighbors.size(); i++) {
+		for (unsigned int i = 0; i < openNeighbors.size(); i++) {
 			gridVal neighbor = grid[openNeighbors[i].x][openNeighbors[i].y];
 			if ((neighbor.cellType == UNKNOWN) || ((neighbor.cellType == FLAME || neighbor.cellType == CANDLE) && !ignoreCandles)) {
 				distanceField[openNeighbors[i].x][openNeighbors[i].y] = distanceField[checking.x][checking.y] + 1;
@@ -429,15 +459,15 @@ void Robot::extinguishCandle(Point target) {
 	//actually extinguish the candle
 	double angleToMove = customAtan(target.y - currentPosCells.y, target.x - currentPosCells.x);
 	serialPrintf(arduinoSerial, "r %d\n", (int)(angleToMove * 180 / PI - 90));
-	arduinoCommands << "r " << (int)(angleToMove * 180 / PI - 90) << "\n";
+	//arduinoCommands << "r " << (int)(angleToMove * 180 / PI - 90) << "\n";
 	while (flameSensor.getFireIntensity() > FLAMESENSORTHRESHOLD) {
 		serialPrintf(arduinoSerial, "e\n");//for extinguish
-		arduinoCommands << "e\n";
+		//arduinoCommands << "e\n";
 		waitForDoneConfirmation();
 	}
 	digitalWrite(FLAMELEDPIN, LOW);
 	serialPrintf(arduinoSerial, "r %d\n", (int)(-angleToMove * 180 / PI));
-	arduinoCommands << "r " << (int)(-angleToMove * 180 / PI) << "\n";
+	//arduinoCommands << "r " << (int)(-angleToMove * 180 / PI) << "\n";
 	//mark all candles in the area as extinguished
 	for(int i = -2; i <= 2; i ++)
 		for(int j = -2; j <= 2; j++)
@@ -457,7 +487,7 @@ Point Robot::closestOpenCell(Point target) {//for getting to candles
 		boundary.erase(boundary.begin());
 		std::vector<Point> openNeighbors;
 		openNeighbors = findOpenNeighbors(checking);
-		for (int i = 0; i < openNeighbors.size(); i++) {
+		for (unsigned int i = 0; i < openNeighbors.size(); i++) {
 			Point current = openNeighbors[i];
 			if (grid[current.x][current.y].cellType <= CLEARTHRESHOLD && distance(current, target) > ROBOT_DIAMETER_CM / 2 + 2) {
 				return current;
@@ -469,6 +499,7 @@ Point Robot::closestOpenCell(Point target) {//for getting to candles
 			}
 		}
 	}
+	return Point(-1, -1);
 }
 
 //good
@@ -490,7 +521,7 @@ void Robot::computeDistanceField(Point target) {
 		boundary.erase(boundary.begin());
 		std::vector<Point> openNeighbors;
 		openNeighbors = findOpenNeighbors(checking);
-		for (int i = 0; i < openNeighbors.size(); i++) {
+		for (unsigned int i = 0; i < openNeighbors.size(); i++) {
 			if (openNeighbors[i].x == target.x && openNeighbors[i].y == target.y) {
 				distanceField[openNeighbors[i].x][openNeighbors[i].y] = distanceField[checking.x][checking.y] + 1;
 			}
@@ -520,12 +551,12 @@ std::vector<Point> Robot::findOpenNeighbors(Point currentPos) {
 }
 
 //good
-/*
-x\y 1  0 -1
-1   n     n
-0      X
--1  n     n
-*/
+
+//x\y 1  0 -1
+//1   n     n
+//0      X
+//-1  n     n
+
 bool Robot::is_diagonal_candidate(int x_offset, int y_offset) {
 	return ((x_offset + y_offset + 2) % 2 == 0);
 }
@@ -534,9 +565,9 @@ void Robot::moveTo(std::vector<Point> moves, bool takePictures){
     // send commands to Arduino to go somewhere by grid coordinates
 	updateTime();
 	if (moves.size() >= 0) {
-		for (int i = 0; i < moves.size(); i++) {
+		for (unsigned int i = 0; i < moves.size(); i++) {
 			serialPrintf(arduinoSerial, "m %d %d\n", moves[i].x, moves[i].y);
-			arduinoCommands << "m " << moves[i].x << " " << moves[i].y << "\n";
+			//arduinoCommands << "m " << moves[i].x << " " << moves[i].y << "\n";
 			while (!serialDataAvail(arduinoSerial)) {
 				updateTime();
 				updateAngle(std::chrono::duration_cast<std::chrono::microseconds>(currTime - prevTime).count());
@@ -551,7 +582,7 @@ void Robot::moveTo(std::vector<Point> moves, bool takePictures){
 			sscanf(receive, "%d", &(currentPosCells.x));
 			sscanf(receive, "%d", &(currentPosCells.y));
 			serialPrintf(arduinoSerial, "r %d\n", -angle);
-			arduinoCommands << "r " << -angle << "\n";
+			//arduinoCommands << "r " << -angle << "\n";
 			angle = 0;
 			int xCorrect = 0;
 			int yCorrect = 0;
@@ -575,16 +606,16 @@ void Robot::moveTo(std::vector<Point> moves, bool takePictures){
 			if (allegedSonar1 != -1 && abs(allegedSonar2 - realSonar2) < 10) {//right
 				xCorrect = allegedSonar1 - (sonic1.getDistance() + 15);
 			}
-			if (allegedSonar3 != -1 & abs(allegedSonar3 - realSonar3) < 10) {//left
+			if (allegedSonar3 != -1 && abs(allegedSonar3 - realSonar3) < 10) {//left
 				xCorrect = -(allegedSonar3 - (sonic3.getDistance() + 15));
 			}
 			serialPrintf(arduinoSerial, "m %d %d\n", xCorrect, yCorrect);
-			arduinoCommands << "m " << xCorrect << " " << yCorrect << "\n";
+			//arduinoCommands << "m " << xCorrect << " " << yCorrect << "\n";
 			j = 0;
 			while ((receive[j] = serialGetchar(arduinoSerial)) != '\n')
 				j++;
 			serialPrintf(arduinoSerial, "z 0 %d %d\n", currentPosCells.x, currentPosCells.y);
-			arduinoCommands << "z 0 " << currentPosCells.x << currentPosCells.y << "\n";
+			//arduinoCommands << "z 0 " << currentPosCells.x << currentPosCells.y << "\n";
 		}
 	}
 }
@@ -600,13 +631,13 @@ int Robot::distanceToWall(int xDirect, int yDirect) {
 	else
 		return tracking.x - currentPosCells.x + tracking.y - currentPosCells.y;
 }
-
+*/
 double Robot::updateAngle(double timeDelta) {
     double angleDelta = sensor.getGyroZ() * timeDelta/1000000;//microseconds
     angle += angleDelta;
 	return angleDelta;
 }
-
+/*
 std::vector<Point> Robot::checkForCradle(double sonarData[4][360]) {
 	double averages[360];
 	double length = 0;
@@ -717,21 +748,21 @@ std::vector<Point> Robot::locateCandles(double sonarData[4][360]) {
 		averages[i] = (sonarData[1][i] + sonarData[2][i] + sonarData[3][i] + sonarData[4][i]) / 4;
 	}
 	    // identify a steep dip in sonarData that returns to normal
-		    /*
-			 +      distance  from bot
-			 +      | *                               * *
-			 +      |   *                          *      *
-			 +      |      *                    *      **    *
-			 +      |         *              *                  *
-			 +      |                                                          *
-			 +      |             *  .  *              **            *     *
-			 +      |
-			 +      |                                   ^---- There's a candle!
-			 +      +--------------------------------------------------------- angle (degrees)
-			 +     */
+//		    
+//			 +      distance  from bot
+//			 +      | *                               * *
+//			 +      |   *                          *      *
+//			 +      |      *                    *      **    *
+//			 +      |         *              *                  *
+//			 +      |                                                          *
+//			 +      |             *  .  *              **            *     *
+//			 +      |
+//			 +      |                                   ^---- There's a candle!
+//			 +      +--------------------------------------------------------- angle (degrees)
+//			 +     
 		    // TODO: adjust these thresholds per experimental data
 		return findAberrantMinimums(averages, 20, 20);
-	
+
 }
 
 void Robot::goSaveBaby() {
@@ -748,16 +779,16 @@ void Robot::goSaveBaby() {
 	moveTo(moves);
 	moves.clear();
 	serialPrintf(arduinoSerial, "r %d\n", turnAngle); // rotate
-	arduinoCommands << "r " << turnAngle << "\n";
+	//arduinoCommands << "r " << turnAngle << "\n";
 	waitForDoneConfirmation();
 	serialPrintf(arduinoSerial, "w %d\n", moveDistance);// shove it out the window
-	arduinoCommands << "w " << moveDistance << "\n";
+	//arduinoCommands << "w " << moveDistance << "\n";
 	waitForDoneConfirmation();
 	serialPrintf(arduinoSerial, "r %d\n", -turnAngle);// rotate
-	arduinoCommands << "r " << -turnAngle << "\n";
+	//arduinoCommands << "r " << -turnAngle << "\n";
 	waitForDoneConfirmation();
 	serialPrintf(arduinoSerial, "z 0 %d %d\n", safeZoneLocation.x + direction.x * moveDistance, safeZoneLocation.y + direction.y * moveDistance);
-	arduinoCommands << "z 0 " << safeZoneLocation.x + direction.x * moveDistance << " " << safeZoneLocation.y + direction.y * moveDistance << "\n";
+	//arduinoCommands << "z 0 " << safeZoneLocation.x + direction.x * moveDistance << " " << safeZoneLocation.y + direction.y * moveDistance << "\n";
 	babySaved = true;
 }
 
@@ -775,15 +806,20 @@ double Robot::customAtan(double y, double x) {
 }
 
 void Robot::outputGrid() {
-	arduinoCommands << "\n";
+	//arduinoCommands << "\n";
 	for (int i = 0; i < GRIDSIZE_CELLS; i++) {
 		for (int j = 0; j < GRIDSIZE_CELLS; j++) {
-			arduinoCommands << (grid[i][j].cellType < .25) ? 0 : grid[i][j].cellType;
+
+			//arduinoCommands << (grid[i][j].cellType < .25 ? 0 : (int)grid[i][j].cellType);
 		}
-		arduinoCommands << "\n";
+		//arduinoCommands << "\n";
 	}
 }
 
 void Robot::takePicture(){
 	return;
 }
+
+
+
+*/
