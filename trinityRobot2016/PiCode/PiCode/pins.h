@@ -14,7 +14,7 @@ constexpr int FLAMESENSORPIN = 5;
 
 constexpr int FLAMELEDPIN = 6;
 constexpr int VISIONLEDPIN = 7;
-constexpr int SOUNDLED = 8;
+constexpr int SOUNDLEDPIN = 8;
 
 #define A0 BASE
 #define A1 BASE+1

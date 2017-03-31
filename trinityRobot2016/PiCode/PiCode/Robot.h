@@ -4,75 +4,34 @@
 #include <vector>
 #include <cmath>
 #include <chrono>
+#include <fstream>
+#include <stdlib.h>
+#include <cstring>
+
 #include <wiringPi.h>
 #include <wiringSerial.h>
 #include <wiringPiI2C.h>
+
 #include "pins.h"
 #include "sonic.h"
 #include "ir.h"
 #include "motion.h"
 #include "constants.h"
-#include <fstream>
-#include <stdlib.h>
-#include <cstring>
-
-class Point {
-public:
-	int x, y;
-
-    Point() {
-	x = 0;
-	y = 0;
-    }
-
-    Point(int x_, int y_) {
-	x = x_;
-	y = y_;
-    }
-  
-    static double distance(Point a, Point b) {
-		return sqrt(pow(b.x - a.x, 2) + pow(b.y - a.y, 2));
-    }
-
-};
-
-class DoublePoint {
-public:
-	double x, y;
-
-	DoublePoint() {
-		x = 0;
-		y = 0;
-	}
-
-	DoublePoint(double x_, double y_) {
-		x = x_;
-		y = y_;
-	}
-};
-
-struct gridVal {
-	int timesScanned;
-	double cellType;
-	gridVal() {
-		timesScanned = 0;
-		cellType = -1;
-	}
-};
+#include "Point.h"
+#include "doublePoint.h"
+#include "gridVal.h"
 
 class Robot {
 public:
-    Robot(int level);
-    ~Robot();
+    Robot();
+//    ~Robot();
     bool update(); //this is where the magic happens  
-private:
 	int level; //level of the competition
 	Point currentPosCells; // robot's current pos
 	gridVal grid[GRIDSIZE_CELLS][GRIDSIZE_CELLS];
 	int distanceField[GRIDSIZE_CELLS][GRIDSIZE_CELLS];
 	double angle;
 	double angVel;
-	Point target;
 	std::vector<Point> moves;
 	MotionSensor sensor = MotionSensor(wiringPiI2CSetup(0x68));
 	SonicSensor sonic0 = SonicSensor(SONIC1_TRIG, SONIC1_ECHO);//front
@@ -115,7 +74,7 @@ private:
 	int createTargetPath(Point target, int thresholdDistance = 100);
 	void extinguishCandle(Point target);
 	std::vector<Point> findOpenNeighbors(Point currentPos);
-    double updateAngle(double timeDelta);
+        double updateAngle(double timeDelta);
 	void routeToStart();
 	void goSaveBaby();
 	double distance(Point a, Point b);

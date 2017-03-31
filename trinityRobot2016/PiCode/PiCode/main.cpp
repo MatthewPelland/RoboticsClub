@@ -1,10 +1,30 @@
-
+#include <iostream>
 #include "Robot.h"
-
 int main() {
-	wiringPiSetupGpio();
-	Robot robit = {1};
-	digitalWrite(SOUNDLED, HIGH);
-	while (robit.update());
-	return 0;
+	Robot robit;
+        wiringPiSetupGpio();
+        robit = Robot();
+//        digitalWrite(SOUNDLEDPIN, HIGH);
+
+        robit.outputGrid();
+/*
+        robit.moves.clear();
+        robit.moves.push_back(Point(0, 20));
+        robit.moveTo(robit.moves);
+*/
+/*
+        robit.scanSurroundings();
+        robit.outputGrid();
+*/
+/*
+        robit.scanSurroundings();
+        robit.createTargetPath(robit.findNextTarget());
+        robit.moveTo(robit.moves);
+*/
+
+/*
+
+*/
+//      while (robit.update());
+        return 0;
 }
