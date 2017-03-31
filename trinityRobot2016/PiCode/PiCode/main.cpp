@@ -1,10 +1,10 @@
 
 #include "Robot.h"
-#include <wiringpi.h>
 
-void main() {
-	wiringPiSetupGPIO();
-	Robot robit = Robot(3);
+int main() {
+	wiringPiSetupGpio();
+	Robot robit = {1};
 	digitalWrite(SOUNDLED, HIGH);
 	while (robit.update());
+	return 0;
 }

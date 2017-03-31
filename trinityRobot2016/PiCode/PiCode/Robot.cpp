@@ -148,7 +148,7 @@ void Robot::initialScan() {
 
 //needs lots of edits once camera shit is figured out
 //refactor the shit out of this
-void Robot::scanSurroundings(bool ignoreCandles = false) {//double check that this one is right
+void Robot::scanSurroundings(bool ignoreCandles) {//double check that this one is right
 	/////////////////////
 	//   Gather Data   //
 	/////////////////////
@@ -316,7 +316,7 @@ void Robot::scanSurroundings(bool ignoreCandles = false) {//double check that th
 				serialPrintf(arduinoSerial, "r %d\n", -turnAngle);
 				arduinoCommands << "r " << -turnAngle << "\n";
 				waitForDoneConfirmation();
-				serialPrintf("z 0 %d %d\n", safeZoneLocation.x + direction.x * moveDistance, safeZoneLocation.y + direction.y * moveDistance);
+				serialPrintf(arduinoSerial, "z 0 %d %d\n", safeZoneLocation.x + direction.x * moveDistance, safeZoneLocation.y + direction.y * moveDistance);
 				arduinoCommands << "z " << safeZoneLocation.x + direction.x * moveDistance << safeZoneLocation.y + direction.y * moveDistance << "\n";
 				babyObtained = true;
 				if (safeZoneFound) {
@@ -339,13 +339,21 @@ void Robot::waitForDoneConfirmation() {
 	serialFlush(arduinoSerial);
 }
 
+bool Robot::checkImageForCradle(){
+	return false;
+}
+
+bool Robot::checkImageForSafeZone(){
+	return false;
+}
+
 //good
 void Robot::updateGridVal(int cellX, int cellY, int type) {
 	grid[cellX][cellY].cellType = (grid[cellX][cellY].cellType*grid[cellX][cellY].timesScanned + type) / (grid[cellX][cellY].timesScanned++ + 1);
 }
 
 //check later
-int Robot::createTargetPath(Point target, int thresholdDistance = 100) {
+int Robot::createTargetPath(Point target, int thresholdDistance) {
     //fills moves with list of all moves necessary to reach target tile
     //moves contains waypoints at each point the robot switches direction
 
@@ -384,7 +392,7 @@ int Robot::createTargetPath(Point target, int thresholdDistance = 100) {
 }
 
 //can be absorbed into computeDistanceField but don't screw with it.
-Point Robot::findNextTarget(bool ignoreCandles = false) {//This one's pretty fast
+Point Robot::findNextTarget(bool ignoreCandles) {//This one's pretty fast
 	for (int i = 0; i < GRIDSIZE_CELLS; i++) {
 		memset(distanceField[i], -1, sizeof(int) * GRIDSIZE_CELLS);
 	}
@@ -515,11 +523,11 @@ x\y 1  0 -1
 0      X
 -1  n     n
 */
-bool is_diagonal_candidate(int x_offset, int y_offset) {
+bool Robot::is_diagonal_candidate(int x_offset, int y_offset) {
 	return ((x_offset + y_offset + 2) % 2 == 0);
 }
 
-void Robot::moveTo(std::vector<Point> moves, bool takePictures = false) {
+void Robot::moveTo(std::vector<Point> moves, bool takePictures){
     // send commands to Arduino to go somewhere by grid coordinates
 	updateTime();
 	if (moves.size() >= 0) {
@@ -534,12 +542,12 @@ void Robot::moveTo(std::vector<Point> moves, bool takePictures = false) {
 				takePicture();
 			char receive[15];
 			int j = 0;
-			while ((receive[j] = serialGetChar(arduinoSerial)) != '\n')
+			while ((receive[j] = serialGetchar(arduinoSerial)) != '\n')
 				j++;
 			sscanf(receive, "%d", &inRoom);
 			sscanf(receive, "%d", &(currentPosCells.x));
 			sscanf(receive, "%d", &(currentPosCells.y));
-			serialPrintf("r %d\n", -angle);
+			serialPrintf(arduinoSerial, "r %d\n", -angle);
 			arduinoCommands << "r " << -angle << "\n";
 			angle = 0;
 			int xCorrect = 0;
@@ -565,9 +573,9 @@ void Robot::moveTo(std::vector<Point> moves, bool takePictures = false) {
 			serialPrintf(arduinoSerial, "m %d %d\n", xCorrect, yCorrect);
 			arduinoCommands << "m " << xCorrect << " " << yCorrect << "\n";
 			j = 0;
-			while ((receive[j] = serialGetChar(arduinoSerial)) != '\n')
+			while ((receive[j] = serialGetchar(arduinoSerial)) != '\n')
 				j++;
-			serialPrintf("z 0 %d %d\n", currentPosCells.x, currentPosCells.y);
+			serialPrintf(arduinoSerial, "z 0 %d %d\n", currentPosCells.x, currentPosCells.y);
 			arduinoCommands << "z 0 " << currentPosCells.x << currentPosCells.y << "\n";
 		}
 	}
@@ -650,7 +658,8 @@ std::vector<Point> Robot::checkForWindow(double sonarData[4][360]) {
 			//we found a window!!!
 			sonarData[0][i] = average;
 			//introducing the jankiest for loop I've ever written
-			for (double j = 0; (sonarData[0][i] - average) > 10; i++, j += .5) {
+			double j;
+			for (j = 0; (sonarData[0][i] - average) > 10; i++, j += .5) {
 				average = (sonarData[1][i] + sonarData[2][i] + sonarData[3][i]) / 3;
 				sonarData[0][i] = average;
 			}
@@ -739,7 +748,7 @@ void Robot::goSaveBaby() {
 	serialPrintf(arduinoSerial, "r %d\n", -turnAngle);// rotate
 	arduinoCommands << "r " << -turnAngle << "\n";
 	waitForDoneConfirmation();
-	serialPrintf("z 0 %d %d\n", safeZoneLocation.x + direction.x * moveDistance, safeZoneLocation.y + direction.y * moveDistance);
+	serialPrintf(arduinoSerial, "z 0 %d %d\n", safeZoneLocation.x + direction.x * moveDistance, safeZoneLocation.y + direction.y * moveDistance);
 	arduinoCommands << "z 0 " << safeZoneLocation.x + direction.x * moveDistance << " " << safeZoneLocation.y + direction.y * moveDistance << "\n";
 	babySaved = true;
 }
@@ -748,7 +757,7 @@ void Robot::routeToStart() {
 	createTargetPath(Point(GRIDSIZE_CELLS/2, GRIDSIZE_CELLS/2));
 }
 
-double customAtan(double y, double x) {
+double Robot::customAtan(double y, double x) {
 	double temp;
 	if (x == 0)
 		return y < 0 ? -90 : 90;
@@ -765,4 +774,8 @@ void Robot::outputGrid() {
 		}
 		arduinoCommands << "\n";
 	}
+}
+
+void Robot::takePicture(){
+	return;
 }

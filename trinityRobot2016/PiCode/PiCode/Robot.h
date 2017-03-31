@@ -6,14 +6,15 @@
 #include <chrono>
 #include <wiringPi.h>
 #include <wiringSerial.h>
+#include <wiringPiI2C.h>
 #include "pins.h"
-#include "sonar.h"
+#include "sonic.h"
 #include "ir.h"
-#include "gyro.h"
+#include "motion.h"
 #include "constants.h"
 #include <fstream>
-
-
+#include <stdlib.h>
+#include <cstring>
 
 class Point {
 public:
@@ -93,22 +94,27 @@ private:
 	std::chrono::high_resolution_clock::time_point prevTime;
 	std::ofstream arduinoCommands;
 
+	void takePicture();
+	bool is_diagonal_candidate(int x, int y);
+	double customAtan(double x, double y);
+	bool checkImageForCradle();
+	bool checkImageForSafeZone();
 	void waitForDoneConfirmation();
 	void outputGrid();
 	void updateTime();
 	std::vector<Point> findAberrantMinimums(double sonarData[360], const double slope_threshold, const double aberration_size_threshold);
 	std::vector<Point> locateCandles(double sonarData[4][360]);
 	void initialScan();
-	void scanSurroundings(bool ignoreCandles);
+	void scanSurroundings(bool ignoreCandles = false);
 	void updateGridVal(int cellX, int cellY, int type);
-	Point findNextTarget(bool);
+	Point findNextTarget(bool ignoreCandles = false);
 	void computeDistanceField(Point target);
 	Point closestOpenCell(Point target);
 	int distanceToWall(int x, int y);
-	void moveTo(std::vector<Point>, bool takePictures); 
-	int createTargetPath(Point target, int thresholdDistance);
+	void moveTo(std::vector<Point>, bool takePictures = false); 
+	int createTargetPath(Point target, int thresholdDistance = 100);
 	void extinguishCandle(Point target);
-	std::vector<Point> Robot::findOpenNeighbors(Point currentPos);
+	std::vector<Point> findOpenNeighbors(Point currentPos);
     double updateAngle(double timeDelta);
 	void routeToStart();
 	void goSaveBaby();
