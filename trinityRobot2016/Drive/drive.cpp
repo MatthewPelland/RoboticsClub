@@ -36,13 +36,7 @@ void updateEncoder4LOW(void);
 
 Drive::Drive()
 {
-	color = Adafruit_TCS34725(TCS34725_INTEGRATIONTIME_700MS, TCS34725_GAIN_1X); //color sensor object
-
-																				 //motors
-																				 //motor1 = AF_DCMotor(1);
-																				 //motor2 = AF_DCMotor(2);
-																				 //motor3 = AF_DCMotor(3);
-																				 //motor4 = AF_DCMotor(4);
+	//colorSensor = Adafruit_TCS34725(TCS34725_INTEGRATIONTIME_700MS, TCS34725_GAIN_1X); //color sensor object
 
 	for (int i = 0; i < 4; i++) {
 		currentEncoder[i] = 0; //current encoder value (since last checked)
@@ -52,12 +46,14 @@ Drive::Drive()
 
 	time = 0; //time since the program began running
 	lastTime = 0; //previous time
-	inRoom = false; //whether we are in a room
+	inRoom = true; //whether we are in a room
+	lastColor = 0; //not white
+	color = 0; //not white
 	currentXPos = 0; //current x
 	currentYPos = 0; //current y
 	totalDeg = 0; //total degrees the robot has turned from its initial position
 
-				  //encoder Interrupts
+	//encoder Interrupts
 	attachInterrupt(digitalPinToInterrupt(ENCODER_PIN1A), updateEncoder1HIGH, RISING);
 	attachInterrupt(digitalPinToInterrupt(ENCODER_PIN1A), updateEncoder1LOW, FALLING);
 
@@ -69,7 +65,31 @@ Drive::Drive()
 
 	attachInterrupt(digitalPinToInterrupt(ENCODER_PIN4A), updateEncoder4HIGH, RISING);
 	attachInterrupt(digitalPinToInterrupt(ENCODER_PIN4A), updateEncoder4LOW, FALLING);
+
+	//i2c_init();
 }
+
+//int readOneVal(bool last) {
+//	uint8_t msb, lsb;
+//	lsb = i2c_read(false);
+//	msb = i2c_read(last);
+//	if (last) i2c_stop();
+//	return (int)((msb << 8) | lsb) / 64;
+//}
+//
+//bool setControlBits(uint16_t cntr) {
+//	if (!i2c_start(I2CADDR | I2C_WRITE)) {
+//		return false;
+//	}
+//	if (!i2c_write(0x0A)) {
+//		return false;
+//	}
+//	if (!i2c_write(cntr)) {
+//		return false;
+//	}
+//	i2c_stop();
+//	return true;
+//}
 
 //updates the encoder value of the specified encoder
 //num 0, 1 - x axis
@@ -221,17 +241,21 @@ double Drive::encoderToCm(int ticks) {
 * 			If the color sensor sees white, we are
 * 			Otherwise, we are not
 */
-void Drive::updateInRoom() {
-	uint16_t r, g, b, c;
-	color.getRawData(&r, &g, &b, &c);
-
-	if (r > 250 && g > 250 && b > 250) { //white -- update these values
-		inRoom = true;
-	}
-	else {
-		inRoom = false;
-	}
-}
+//void Drive::updateInRoom() {
+//	uint16_t r, g, b, c;
+//	colorSensor.getRawData(&r, &g, &b, &c);
+//
+//	if (r > 250 && g > 250 && b > 250) { //white -- update these values
+//		color = 1; //white
+//		if (color != lastColor) {
+//			inRoom = !inRoom;
+//		} 
+//	}
+//	else {
+//		color = 0; //not white
+//	}
+//	lastColor = color;
+//}
 
 /**
 * @brief Get data from the accelerometer
@@ -278,7 +302,7 @@ double Drive::getGyroData() {
 	GyY = Wire.read() << 8 | Wire.read();  // 0x45 (GYRO_YOUT_H) & 0x46 (GYRO_YOUT_L)
 	GyZ = Wire.read() << 8 | Wire.read();  // 0x47 (GYRO_ZOUT_H) & 0x48 (GYRO_ZOUT_L)
 
-	return GyZ; //CHANGE TO ANGULAR VEL
+	return GyZ; //currently in degrees/sec
 }
 
 //drives the robot
@@ -460,11 +484,6 @@ void Drive::drive(int x, int y, int max_speed)
 		motor3.setSpeed(abs(power3) * 100 > 255 ? 255 : abs(power3) * 100);
 		motor4.setSpeed(abs(power4) * 100 > 255 ? 255 : abs(power4) * 100);
 
-		/*motor1.setSpeed(abs(power1) * 100);
-		motor2.setSpeed(abs(power2) * 100);
-		motor3.setSpeed(abs(power3) * 100);
-		motor4.setSpeed(abs(power4) * 100);*/
-
 		if (power1 < 0)
 			motor1.run(BACKWARD);
 		else
@@ -547,6 +566,8 @@ void Drive::turn(int degrees, int max_speed) {
 	motor2.run(RELEASE);
 	motor3.run(RELEASE);
 	motor4.run(RELEASE);
+
+	Serial.println(1); //done
 }
 
 void Drive::go(double xTarget, double yTarget) {
@@ -558,6 +579,7 @@ void Drive::go(double xTarget, double yTarget) {
 	updateTime();
 	while (abs(xError) > epsilon || abs(yError) > epsilon) {
 		updateTime();
+		//updateInRoom();
 		//double currentXVel = getLinearSpeedEncoder('x');
 		//double currentYVel = getLinearSpeedEncoder('y');
 		//currentXPos += currentXVel * (time - lastTime);
@@ -621,6 +643,58 @@ void Drive::go(double xTarget, double yTarget) {
 	motor2.run(RELEASE);
 	motor3.run(RELEASE);
 	motor4.run(RELEASE);
-	Serial.println(currentXPos);
+	Serial.print(inRoom);
+	Serial.print(currentXPos);
 	Serial.println(currentYPos);
+}
+
+void Drive::driveCm(int cm) {
+	double error = cm;
+	double epsilon = 0.50;
+	double powers[] = { 0,0,0,0 };
+	double xPower = 0, yPower = 0;
+	updateTime();
+	while (abs(error) > epsilon ) {
+		updateTime();
+		//updateInRoom();
+
+		double delta = (-(double)(currentEncoder[0] - lastEncoder[0]) / sqrt(2) + (double)(currentEncoder[1] - lastEncoder[1]) / sqrt(2) + (double)(currentEncoder[2] - lastEncoder[2]) / sqrt(2) - (double)(currentEncoder[3] - lastEncoder[3]) / sqrt(2))*WHEEL_RADIUS * 2 * M_PI / 1024 / 2;
+
+		error -= delta;
+
+		yPower = 300;
+
+		powers[0] = xPower / sqrt(2) - yPower / sqrt(2);
+		powers[1] = yPower / sqrt(2) + xPower / sqrt(2);
+		powers[2] = yPower / sqrt(2) - xPower / sqrt(2);
+		powers[3] = -1 * xPower / sqrt(2) - yPower / sqrt(2);
+
+
+		motor1.setSpeed(abs(powers[0]) + 40);
+		motor2.setSpeed(abs(powers[1]) + 32);
+		motor3.setSpeed(abs(powers[2]));
+		motor4.setSpeed(abs(powers[3]));
+
+		if (powers[0] < 0)
+			motor1.run(BACKWARD);
+		else
+			motor1.run(FORWARD);
+		if (powers[1] < 0)
+			motor2.run(BACKWARD);
+		else
+			motor2.run(FORWARD);
+		if (powers[2] < 0)
+			motor3.run(BACKWARD);
+		else
+			motor3.run(FORWARD);
+		if (powers[3] < 0)
+			motor4.run(BACKWARD);
+		else
+			motor4.run(FORWARD);
+	}
+
+	motor1.run(RELEASE);
+	motor2.run(RELEASE);
+	motor3.run(RELEASE);
+	motor4.run(RELEASE);
 }
