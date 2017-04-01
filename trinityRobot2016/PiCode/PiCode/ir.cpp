@@ -5,11 +5,11 @@
 #include "ir.h"
 
 IRSensor::IRSensor(int analogIn) {
-	mcp3004Setup(BASE, SPI_CHAN);
+//	mcp3004Setup(BASE, SPI_CHAN);
 	analogPin = analogIn;
 	pinMode(analogPin, INPUT);
 }
 
 int IRSensor::getFireIntensity() {
-	return analogRead(A0);
+	return analogRead(analogPin);
 }

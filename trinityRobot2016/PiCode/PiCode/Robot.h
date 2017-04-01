@@ -24,9 +24,9 @@
 class Robot {
 public:
 	Robot();
-    Robot(int aLevel);
+//    Robot(int aLevel);
 //    ~Robot();
-//    bool update(); //this is where the magic happens  
+    bool update(); //this is where the magic happens  
 	FILE* fp;
 	int level; //level of the competition
 	Point currentPosCells; // robot's current pos
@@ -35,12 +35,13 @@ public:
 	double angle;
 	double angVel;
 	std::vector<Point> moves;
-	MotionSensor sensor = MotionSensor(wiringPiI2CSetup(0x68));
 	SonicSensor sonic0 = SonicSensor(SONIC1_TRIG, SONIC1_ECHO);//front
 	SonicSensor sonic1 = SonicSensor(SONIC2_TRIG, SONIC2_ECHO);//right
 	SonicSensor sonic2 = SonicSensor(SONIC3_TRIG, SONIC3_ECHO);//rear
 	SonicSensor sonic3 = SonicSensor(SONIC4_TRIG, SONIC4_ECHO);//left
-//	IRSensor flameSensor = IRSensor(FLAMESENSORPIN);
+	IRSensor flameSensor = IRSensor(FLAMESENSORPIN);
+	MotionSensor sensor = MotionSensor(wiringPiI2CSetup(0x68));
+
 	int sensorDist_cm;
 	int arduinoSerial;
 	int unextinguishedCandleCount;
@@ -56,33 +57,33 @@ public:
 	std::chrono::high_resolution_clock::time_point startTime;
 //	std::ofstream arduinoCommands;
 	void testGyro();
-//	void takePicture();
-//	bool is_diagonal_candidate(int x, int y);
-//	double customAtan(double x, double y);
-//	bool checkImageForCradle();
-//	bool checkImageForSafeZone();
-//	void waitForDoneConfirmation();
-//	void outputGrid();
+	void takePicture();
+	bool is_diagonal_candidate(int x, int y);
+	double customAtan(double x, double y);
+	bool checkImageForCradle();
+	bool checkImageForSafeZone();
+	void waitForDoneConfirmation();
+	void outputGrid();
 	void updateTime();
-//	std::vector<Point> findAberrantMinimums(double sonarData[360], const double slope_threshold, const double aberration_size_threshold);
-//	std::vector<Point> locateCandles(double sonarData[4][360]);
+	std::vector<Point> findAberrantMinimums(double sonarData[360], const double slope_threshold, const double aberration_size_threshold);
+	std::vector<Point> locateCandles(double sonarData[4][360]);
 	void initialScan();
-//	void scanSurroundings(bool ignoreCandles = false);
-//	void updateGridVal(int cellX, int cellY, int type);
-//	Point findNextTarget(bool ignoreCandles = false);
-//	void computeDistanceField(Point target);
-//	Point closestOpenCell(Point target);
-//	int distanceToWall(int x, int y);
-//	void moveTo(std::vector<Point>, bool takePictures = false); 
-//	int createTargetPath(Point target, int thresholdDistance = 100);
-//	void extinguishCandle(Point target);
-///	std::vector<Point> findOpenNeighbors(Point currentPos);
+	void scanSurroundings(bool ignoreCandles = false);
+	void updateGridVal(int cellX, int cellY, int type);
+	Point findNextTarget(bool ignoreCandles = false);
+	void computeDistanceField(Point target);
+	Point closestOpenCell(Point target);
+	int distanceToWall(int x, int y);
+	void moveTo(std::vector<Point>, bool takePictures = false); 
+	int createTargetPath(Point target, int thresholdDistance = 100);
+	void extinguishCandle(Point target);
+	std::vector<Point> findOpenNeighbors(Point currentPos);
         double updateAngle(double timeDelta);
-//	void routeToStart();
-//	void goSaveBaby();
-//	double distance(Point a, Point b);
-//	std::vector<Point> checkForCradle(double sonarData[4][360]);
-//	std::vector<Point> checkForWindow(double sonarData[4][360]);
+	void routeToStart();
+	void goSaveBaby();
+	double distance(Point a, Point b);
+	std::vector<Point> checkForCradle(double sonarData[4][360]);
+	std::vector<Point> checkForWindow(double sonarData[4][360]);
 
 };
 

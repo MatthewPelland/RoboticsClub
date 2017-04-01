@@ -21,6 +21,7 @@ private:
 	int fd;
 	int I2CAddress;
 
+	int8_t zAdjust;
 	int8_t x_gyro;
 	int8_t y_gyro;
 	int8_t z_gyro;

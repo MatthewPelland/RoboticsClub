@@ -23,7 +23,8 @@ MotionSensor::MotionSensor(int fd) {
 	if (fd == -1) {
 		return;
 	}
-
+	zAdjust = 0;
+	zAdjust = getGyroZ();
 	wiringPiI2CReadReg8(fd, MPU6050_PWR_MGMT_1);
 	wiringPiI2CWriteReg16(fd, MPU6050_PWR_MGMT_1, 0);
 }
@@ -37,7 +38,7 @@ int8_t MotionSensor::getGyroY() {
 }
 
 int8_t MotionSensor::getGyroZ() {
-	return (int8_t)wiringPiI2CReadReg8(fd, MPU6050_GYRO_ZOUT_H);
+	return (int8_t)wiringPiI2CReadReg8(fd, MPU6050_GYRO_ZOUT_H) - zAdjust;
 }
 
 int8_t MotionSensor::getAccelX() {

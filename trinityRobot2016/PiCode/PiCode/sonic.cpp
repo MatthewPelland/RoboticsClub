@@ -1,9 +1,13 @@
 #include <ctime>
+#include <iostream>
 #include <wiringPi.h>
 
 #include "sonic.h"
 
 SonicSensor::SonicSensor(int trig, int echo) {
+    if(wiringPiSetupGpio() == -1){
+       std::cout << "ATTEMPTING TO USE SONAR SENSOR BEFORE WIRINGPIGPIO INITIALIZATION!" << std::endl;
+    }
 	this->trig = trig;
 	this->echo = echo;
 
