@@ -190,11 +190,13 @@ void Robot::scanSurroundings(bool ignoreCandles) {//double check that this one i
 	/////////////////////
 	//   Gather Data   //
 	/////////////////////
+
+	const int numPoints = 360;
 	Point candle = Point(-1, -1);//lit Candle
 	std::vector<Point> cradles = std::vector<Point>();
 	std::vector<Point> windows = std::vector<Point>();
 	std::vector<Point> unlitCandles = std::vector<Point>();
-	double sonarData[4][360];
+	double sonarData[4][numPoints];
 	for (int i = 0; i < 4; i++) {
 		for(int j = 0; j < 360; j ++)
 			sonarData[i][j] = -1;
@@ -487,6 +489,8 @@ Point Robot::findNextTarget(bool ignoreCandles) {//This one's pretty fast
 		openNeighbors = findOpenNeighbors(checking);
 		for (unsigned int i = 0; i < openNeighbors.size(); i++) {
 			gridVal neighbor = grid[openNeighbors[i].x][openNeighbors[i].y];
+			if(neighbor.cellType == UNKNOWN && sizeOfUnknown(Point(openNeighbors[i].x, openNeighbors[i].y)) < 10)
+				clearUnknownRegion(Point(openNeighbors[i].x, openNeighbors[i].y));
 			if ((neighbor.cellType == UNKNOWN) || ((neighbor.cellType == FLAME || neighbor.cellType == CANDLE) && !ignoreCandles)) {
 				distanceField[openNeighbors[i].x][openNeighbors[i].y] = distanceField[checking.x][checking.y] + 1;
 				return openNeighbors[i]; //closest unknown/candle tile as ordered
@@ -524,6 +528,46 @@ void Robot::extinguishCandle(Point target) {
 			if(grid[target.x + i][target.y + j].cellType == CANDLE || grid[target.x + i][target.y + j].cellType == FLAME)
 				grid[target.x + i][target.y + j].cellType = EXTINGUISHED;
 	waitForDoneConfirmation();
+}
+
+int Robot::sizeOfUnknown(Point unk) {
+	std::vector<Point> boundary;
+	int size = 0;
+	boundary.push_back(Point(currentPosCells.x, currentPosCells.y));
+	distanceField[currentPosCells.x][currentPosCells.y] = 0;
+	while (boundary.size() > 0) {
+		Point checking = boundary[0];
+		boundary.erase(boundary.begin());
+		std::vector<Point> openNeighbors;
+		openNeighbors = findOpenNeighbors(checking);
+		for (unsigned int i = 0; i < openNeighbors.size(); i++) {
+			if (grid[openNeighbors[i].x][openNeighbors[i].y].cellType == UNKNOWN) {
+				boundary.push_back(openNeighbors[i]);
+				size++;
+				if (size >= 10)
+					return 15;
+			}
+		}
+	}
+	return size;
+}
+
+void Robot::clearUnknownRegion(Point unk) {
+	std::vector<Point> boundary;
+	boundary.push_back(Point(currentPosCells.x, currentPosCells.y));
+	distanceField[currentPosCells.x][currentPosCells.y] = 0;
+	while (boundary.size() > 0) {
+		Point checking = boundary[0];
+		grid[checking.x][checking.y].cellType = CLEAR;
+		boundary.erase(boundary.begin());
+		std::vector<Point> openNeighbors;
+		openNeighbors = findOpenNeighbors(checking);
+		for (unsigned int i = 0; i < openNeighbors.size(); i++) {
+			if (grid[openNeighbors[i].x][openNeighbors[i].y].cellType == UNKNOWN) {
+				boundary.push_back(openNeighbors[i]);
+			}
+		}
+	}
 }
 
 //good

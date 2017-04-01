@@ -72,6 +72,8 @@ public:
 	void updateGridVal(int cellX, int cellY, int type);
 	Point findNextTarget(bool ignoreCandles = false);
 	void computeDistanceField(Point target);
+	int sizeOfUnknown(Point unk);
+	void clearUnknownRegion(Point unk);
 	Point closestOpenCell(Point target);
 	int distanceToWall(int x, int y);
 	void moveTo(std::vector<Point>, bool takePictures = false); 
