@@ -528,20 +528,20 @@ void Drive::drive(int x, int y, int max_speed)
 */
 void Drive::turn(int degrees, int max_speed) {
 	double ticksToGo = (degrees * M_PI / 180 * ROBOT_RADIUS) / (2 * M_PI * WHEEL_RADIUS) * 1024 / 1.5;//3000
-	Serial.print("degrees: ");
+	/*Serial.print("degrees: ");
 	Serial.println(degrees);
 	Serial.print("arcLength: ");
 	Serial.println(degrees * M_PI / 180 * ROBOT_RADIUS);
 	Serial.print("ticksToGo: ");
-	Serial.println(ticksToGo);
+	Serial.println(ticksToGo);*/
 
 	int targetTicks = tickCount[0] + ticksToGo; //3000
 	double error = ticksToGo;//3000
-	double epsilon = 50;
-	motor1.setSpeed(175);
-	motor2.setSpeed(175);
-	motor3.setSpeed(175);
-	motor4.setSpeed(175);
+	double epsilon = 30;
+	motor1.setSpeed(150);
+	motor2.setSpeed(150);
+	motor3.setSpeed(150);
+	motor4.setSpeed(150);
 	if (error < 0) {
 		motor1.run(BACKWARD);
 		motor2.run(BACKWARD);
@@ -567,7 +567,7 @@ void Drive::turn(int degrees, int max_speed) {
 	motor3.run(RELEASE);
 	motor4.run(RELEASE);
 
-	Serial.println(1); //done
+	Serial.print(1); //done
 }
 
 void Drive::go(double xTarget, double yTarget) {
@@ -579,25 +579,20 @@ void Drive::go(double xTarget, double yTarget) {
 	updateTime();
 	while (abs(xError) > epsilon || abs(yError) > epsilon) {
 		updateTime();
-		//updateInRoom();
-		//double currentXVel = getLinearSpeedEncoder('x');
-		//double currentYVel = getLinearSpeedEncoder('y');
-		//currentXPos += currentXVel * (time - lastTime);
-		//currentYPos += currentYVel * (time - lastTime);
 
-		double deltaX = ((double)(currentEncoder[0] - lastEncoder[0])/sqrt(2) + (double)(currentEncoder[1] - lastEncoder[1])/sqrt(2) - (double)(currentEncoder[2] - lastEncoder[2])/sqrt(2) - (double)(currentEncoder[3] - lastEncoder[3])/sqrt(2))*WHEEL_RADIUS *2 *M_PI/1024 / 2;
-		double deltaY = (-(double)(currentEncoder[0] - lastEncoder[0])/sqrt(2) + (double)(currentEncoder[1] - lastEncoder[1])/sqrt(2) + (double)(currentEncoder[2] - lastEncoder[2])/sqrt(2) - (double)(currentEncoder[3] - lastEncoder[3])/sqrt(2))*WHEEL_RADIUS * 2 * M_PI / 1024 / 2;
+		double deltaX = ((double)(currentEncoder[0] - lastEncoder[0]) / sqrt(2) + (double)(currentEncoder[1] - lastEncoder[1]) / sqrt(2) - (double)(currentEncoder[2] - lastEncoder[2]) / sqrt(2) - (double)(currentEncoder[3] - lastEncoder[3]) / sqrt(2))*WHEEL_RADIUS * 2 * M_PI / 1024 / 2;
+		double deltaY = (-(double)(currentEncoder[0] - lastEncoder[0]) / sqrt(2) + (double)(currentEncoder[1] - lastEncoder[1]) / sqrt(2) + (double)(currentEncoder[2] - lastEncoder[2]) / sqrt(2) - (double)(currentEncoder[3] - lastEncoder[3]) / sqrt(2))*WHEEL_RADIUS * 2 * M_PI / 1024 / 2;
 		currentXPos += deltaX;
 		currentYPos += deltaY;
 
 		xError = xTarget - currentXPos;
 		yError = yTarget - currentYPos;
 
-		if(xError < epsilon && xError > -epsilon)
+		if (xError < epsilon && xError > -epsilon)
 			xPower = 0;
 		else if (xError > 0)
 			xPower = 300;
-		else 
+		else
 			xPower = -300;
 		if (yError < epsilon && yError > -epsilon)
 			yPower = 0;
@@ -634,17 +629,14 @@ void Drive::go(double xTarget, double yTarget) {
 		else
 			motor4.run(FORWARD);
 	}
-	
 
-	for (int i = 0; i < 4; i++) {
-		Serial.println(tickCount[i]);
-	}
 	motor1.run(RELEASE);
 	motor2.run(RELEASE);
 	motor3.run(RELEASE);
 	motor4.run(RELEASE);
-	Serial.print(inRoom);
+
 	Serial.print(currentXPos);
+	Serial.print(" ");
 	Serial.println(currentYPos);
 }
 
