@@ -4,30 +4,47 @@
 #include <drive.h>
 #include <Servo.h>
 
-#define FIRE_PIN 10
-#define CRADLE_PIN 10
+#define cradleDIRPin1 41
+#define cradleDIRPin2 43 
+#define cradlePWMPin1 15
+#define cradlePWMPin2 16
+#define firePin 53
+#define babyPin 51
 
 Servo fire;
-Servo cradle;
+Servo baby;
 
 void extinguishFire();
 void getCradle(int cm);
 void shoveBabyOutWindow(int cm);
+
 Drive d;
 
 void setup() {
   // put your setup code here, to run once:
   Serial.begin(9600);
-  fire.attach(FIRE_PIN);
-  cradle.attach(CRADLE_PIN);
+  fire.attach(firePin);
+  baby.attach(babyPin);
+  fire.write(0);
+  baby.write(0);
+
+  pinMode(cradleDIRPin1, OUTPUT);
+  pinMode(cradleDIRPin2, OUTPUT);
+  pinMode(cradlePWMPin1, OUTPUT);
+  pinMode(cradlePWMPin2, OUTPUT);
+
+  digitalWrite(cradleDIRPin1, LOW);
+  digitalWrite(cradleDIRPin2, LOW);
+  digitalWrite(cradlePWMPin1, LOW);
+  digitalWrite(cradlePWMPin2, LOW);
   d = Drive();
+  Serial.print(1);
 }
 
 void loop() {
   // put your main code here, to run repeatedly:
   String s;
   int c;
- 
   if(Serial.available() > 0){
     c = Serial.read();
     while(c != '\n' && c != '^'){
@@ -39,63 +56,108 @@ void loop() {
   }
   
   char* c_str = s.c_str();
-  char* test = "a 8 7 2";
-  int x, y;
-  char tmp;
-  int temp1, temp2, temp3;
-  int inc = 2;
+  int x, y, deg, cm;
   switch(c_str[0]){
       case 'm':   
-                  while(sscanf(c_str + inc, "%d %d", &x, &y) == 2){
-                    Serial.print("here1 :)\n");
-                    d.drive(x, y, 10); //test this
-                    Serial.print("here2 :)\n");
-                    inc += floor (log10 (abs (x))) + 1 + floor (log10 (abs (y))) + 1 + 1;
-                  }
-                  Serial.println("...");
-                  //d.go(255, 255, 255, 255);
-                  break;
+                sscanf(c_str + 2, "%d %d", &x, &y);
+                d.go(x, y); //test this
+                break;
       case 'r': int deg;
-                sscanf(c_str, "%d", &deg);
-                d.turn(deg, 50); //test this
+                sscanf(c_str + 2, "%d", &deg);
+                d.turn(deg, 150); //test this
                 break;
-      case 'c': //getCradle();
+      case 'c':
+                sscanf(c_str + 2, "%d", &cm);
+                getCradle(cm);
                 break;
-      case 'w': int cm;
-                sscanf(c_str, "%d", &cm);
+      case 'w':
+                sscanf(c_str + 2, "%d", &cm);
                 shoveBabyOutWindow(cm);
                 break;
-      case 'e': extinguishFire();
+      case 'e': Serial.print(5);
+                extinguishFire();
                 break;
-      case 'z': int angle;
-                sscanf(c_str, "%d %d %d", &angle, &x, &y);
-                d.setInitialPos(x, y, angle);
+      case 'z': 
+                sscanf(c_str + 2, "%d %d %d", &deg, &x, &y);
+                d.setInitialPos(x, y, deg);
                 break;
+      case 's': d.motor1.setSpeed(255);
+                d.motor2.setSpeed(255);
+                d.motor3.setSpeed(255);
+                d.motor4.setSpeed(255);
+                d.motor1.run(FORWARD);
+                d.motor2.run(FORWARD);
+                d.motor3.run(FORWARD);
+                d.motor4.run(FORWARD);
   }
 }
 
 void extinguishFire(){
   //press button
-  fire.write(20);
-  delay(2000); //2 seconds
+  fire.write(38);
+  Serial.print(7);
+  for(int i = 0; i < 100; i++)
+    delay(1);
+  Serial.print(8);
   //unpress button
-  fire.write(100);
+  fire.write(50);
+  Serial.print(1);
 }
 
 void getCradle(int cm){
   //go forwards :)
-  //analogWrite(MOTOR_PIN1, 255);
-  //analogWrite(MOTOR_PIN2, -255);
-  //analogWrite(MOTOR_PIN3, 255);
-  //analogWrite(MOTOR_PIN4, -255);
-  delay(1000); //1 second
-  cradle.write(100);
-  delay(500); //test this
-//  d.drive(0, cm, 50); //test this - 2 cm 50 cm/s
+  /*d.motor1.setSpeed(255);
+  d.motor2.setSpeed(230);
+  d.motor3.setSpeed(190);
+  d.motor4.setSpeed(190);
+  d.motor1.run(FORWARD);
+  d.motor2.run(BACKWARD);
+  d.motor3.run(BACKWARD);
+  d.motor4.run(FORWARD);
+  delay(2000);
+  d.motor1.run(RELEASE);
+  d.motor2.run(RELEASE);
+  d.motor3.run(RELEASE);
+  d.motor4.run(RELEASE);*/
+  digitalWrite(cradleDIRPin1, LOW);
+  digitalWrite(cradleDIRPin2, LOW);
+  digitalWrite(cradlePWMPin1, LOW);
+  digitalWrite(cradlePWMPin2, LOW);  
+  Serial.print(1);
+  delay(150);
+  digitalWrite(cradleDIRPin1, HIGH);
+  digitalWrite(cradleDIRPin2, HIGH);
+  analogWrite(cradlePWMPin1, 50);
+  analogWrite(cradlePWMPin2, 50);
+  Serial.print(2);
+  delay(1000); //test this
+  digitalWrite(cradleDIRPin1, LOW);
+  digitalWrite(cradleDIRPin2, LOW);
+  digitalWrite(cradlePWMPin1, LOW);
+  digitalWrite(cradlePWMPin2, LOW);
+  //d.driveCm(cm); //back up
+  Serial.print(3); //done
 }
 
 void shoveBabyOutWindow(int cm){
-  //move servo
+  //go forwards :)
+  d.motor1.setSpeed(255);
+  d.motor2.setSpeed(230);
+  d.motor3.setSpeed(190);
+  d.motor4.setSpeed(190);
+  d.motor1.run(FORWARD);
+  d.motor2.run(BACKWARD);
+  d.motor3.run(BACKWARD);
+  d.motor4.run(FORWARD);
+  delay(2000);
+  d.motor1.run(RELEASE);
+  d.motor2.run(RELEASE);
+  d.motor3.run(RELEASE);
+  d.motor4.run(RELEASE);
+  baby.write(100);
+  delay(500); //test this
+  d.driveCm(cm); //back up
+  Serial.print(1); //done
 }
 
 
