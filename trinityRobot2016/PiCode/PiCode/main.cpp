@@ -9,21 +9,17 @@
 #include "Robot.h"
 
 int main() {
-	std::cout << "This really should run" << std::endl;
-
-
     if(wiringPiSetupGpio() < 0){
 		std::cout << "NOPE" << std::endl;
 		exit(1);
 	}
-	std::cout << "make robot?" << std::endl;
     Robot robit;
 
 	//robit = Robot();
 //	std::cout<< "hello" << std::flush;
 	serialFlush(robit.arduinoSerial);
 //	char* buffer = "c";
-
+//	while(robit.update());
 //	robit.scanSurroundings();
 //	robit.outputGrid();
 
@@ -53,7 +49,8 @@ int main() {
 //        robit.moves.clear();
 //        robit.moves.push_back(Point(0, 20));
 //        robit.moveTo(robit.moves);
-	delay(2000);
+
+while(1){
 	std::cout << "scanSurroundings" << std::endl;
 
         robit.scanSurroundings();
@@ -62,8 +59,14 @@ int main() {
 
         robit.outputGrid();
 
+	robit.createTargetPath(robit.findNextTarget());
+
+	std::cout << "nummoves" << robit.moves.size() << std::endl;
+
+	robit.moveTo(robit.moves);
 
 	std::cout << "program completed brah" << std::endl;
+}
 
 
 /*

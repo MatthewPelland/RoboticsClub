@@ -19,15 +19,24 @@ double SonicSensor::getDistance() {
 	digitalWrite(trig, HIGH);
 	delayMicroseconds(10);
 	digitalWrite(trig, LOW);
+	time_t initialTime = clock();
 	time_t startTime = clock();
 	time_t stopTime = clock();
 
 	while (digitalRead(echo) == 0) {
 		startTime = clock();
+		if((startTime - initialTime) > 1000000){
+			std::cout << "sonic timeout" << std::endl;
+			return -1;
+		}
 	}
 
 	while (digitalRead(echo) == 1) {
 		stopTime = clock();
+		if((stopTime - initialTime) > 2000000){
+			std::cout << "sonic timeout" << std::endl;
+			return -1;
+		}
 	}
 
 	time_t timeElapsed = stopTime - startTime;

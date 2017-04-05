@@ -3,11 +3,12 @@
 
 class IRSensor {
 public:
-	IRSensor(int analogIn);
-	int getFireIntensity();
+    IRSensor(int pin);
+    bool fireDetected();
 private:
-	int analogPin;
+    int pin;
 };
 
 #endif
+
 

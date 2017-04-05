@@ -80,13 +80,14 @@ public:
 	int createTargetPath(Point target, int thresholdDistance = 100);
 	void extinguishCandle(Point target);
 	std::vector<Point> findOpenNeighbors(Point currentPos);
-        double updateAngle(double timeDelta);
+        std::vector<Point> findOpenOrClearNeighbors(Point currentPos);
+	double updateAngle(double timeDelta);
 	void routeToStart();
 	void goSaveBaby();
 	double distance(Point a, Point b);
 	std::vector<Point> checkForCradle(double sonarData[4][360]);
 	std::vector<Point> checkForWindow(double sonarData[4][360]);
-
+	void displayDistanceField();
 };
 
 #endif // ROBOT_H_

@@ -91,9 +91,11 @@ bool Robot::update() {
 	if (unextinguishedCandleCount == 0 && mazeComplete) {//no candles left and maze fully mapped
 		routeToStart();
 		moveTo(moves);
+		moves.clear();
 		return true;
 	}
 	moveTo(moves);
+	moves.clear();
 	return false;
 	//moves.clear();
 	//if (babySaved) {//this seems legit
@@ -143,15 +145,14 @@ void Robot::initialScan() {
 	updateTime();
 	std::cout << "rotating" << std::flush;
 	delay(100);
+	serialFlush(arduinoSerial);
     while (!serialDataAvail(arduinoSerial)) {
-		std::cout << "LOOPING" << std::endl;
 		updateTime();
-		angleDelta += updateAngle((double)std::chrono::duration_cast<std::chrono::microseconds>(currTime - prevTime).count());
-		sonarData[(int)(angleDelta + 0 * 90)%360] = sonic0.getDistance()+15;
-		sonarData[(int)(angleDelta + 1 * 90)%360] = sonic1.getDistance()+15;
+		updateAngle((double)std::chrono::duration_cast<std::chrono::microseconds>(currTime - prevTime).count());
+		sonarData[(int)(angle + 0 * 90)%360] = sonic0.getDistance()+15;
+		sonarData[(int)(angle + 1 * 90)%360] = sonic1.getDistance()+15;
 		//sonarData[(int)(angleDelta / (PI / 2.0) * 90) + 2 * 90] = sonic2.getDistance()+7;
-		sonarData[(int)(angleDelta + 3 * 90)%360] = sonic3.getDistance()+15;
-		delay(5);
+		sonarData[(int)(angle + 3 * 90)%360] = sonic3.getDistance()+15;
     }
 	std::cout<< "all done" << std::flush;
 	serialFlush(arduinoSerial);
@@ -173,6 +174,7 @@ void Robot::initialScan() {
 	//arduinoCommands << "r " << (mostPerpindicular - 120 < 180 ? mostPerpindicular - 120 : mostPerpindicular - 120 - 360) << "\n";
 	angle = 0;
 	std::cout << "best" << mostPerpindicular << std::endl;
+	waitForDoneConfirmation();
 }
 
 void cleanSonarData(double sonarData[4][360]){
@@ -201,24 +203,24 @@ void Robot::scanSurroundings(bool ignoreCandles) {//double check that this one i
 		for(int j = 0; j < 360; j ++)
 			sonarData[i][j] = -1;
 	}
-	int flameSensorData[360];
-	memset(flameSensorData, -1, sizeof(int) * 360);
+	bool flameSensorData[360];
+	memset(flameSensorData, 0, sizeof(bool) * 360);
 	//void cameraData[360];
+	serialFlush(arduinoSerial);
 	serialPrintf(arduinoSerial, "r 360\n");
 	//arduinoCommands << "r 360\n";
 	updateTime();
 	std::cout << "gonna scan Surroundings" << std::endl;
-	serialFlush(arduinoSerial);
 	while (!serialDataAvail(arduinoSerial)) {
 		updateTime();
 		updateAngle(std::chrono::duration_cast<std::chrono::microseconds>(currTime - prevTime).count());
-		//flameSensorData[(int)scanAngle] = flameSensor.getFireIntensity();
-			sonarData[0][(int)(angle + 0 * 90 + 90) % 360] = sonic0.getDistance() + 15;
-			sonarData[1][(int)(angle + 1 * 90 + 90) % 360] = sonic1.getDistance() + 15;
-			//sonarData[2][(int)(angle + 2 * 90 + 90) % 360] = sonic2.getDistance() + 7; //offset in by 8 cm
-			sonarData[3][(int)(angle + 3 * 90 + 90) % 360] = sonic3.getDistance() + 15;
+		flameSensorData[(int)angle + 90] = flameSensor.fireDetected();
+		sonarData[0][(int)(angle + 0 * 90 + 90) % 360] = sonic0.getDistance() + 15;
+		sonarData[1][(int)(angle + 1 * 90 + 90) % 360] = sonic1.getDistance() + 15;
+		//sonarData[2][(int)(angle + 2 * 90 + 90) % 360] = sonic2.getDistance() + 7; //offset in by 8 cm
+		sonarData[3][(int)(angle + 3 * 90 + 90) % 360] = sonic3.getDistance() + 15;
 	}
-	std::cout << "finishedScanning" << std::endl;
+	std::cout << "finishedScanning" << (char)serialGetchar(arduinoSerial) << std::endl;
 	serialFlush(arduinoSerial);
 
 	//////////////////////
@@ -226,7 +228,7 @@ void Robot::scanSurroundings(bool ignoreCandles) {//double check that this one i
 	//////////////////////
 
 	//also clears out false window data, so necessary for all levels
-	windows = checkForWindow(sonarData); 
+	//windows = checkForWindow(sonarData); 
 	if (level == 3) {
 		unlitCandles = locateCandles(sonarData);
 		if(!babyObtained)
@@ -235,18 +237,19 @@ void Robot::scanSurroundings(bool ignoreCandles) {//double check that this one i
 
 
 
-	cleanSonarData(sonarData);
+	//cleanSonarData(sonarData);
 	for (int sensor = 0; sensor < 4; sensor++) {
 		for (int i = 0; i < 360; i++) {
 			//do sonar stuff
 			double distanceReading = sonarData[sensor][i];
 			if (distanceReading < sensorDist_cm && distanceReading > 0) {
-				int targetCellX = int((distanceReading * cos((i + 90 * sensor + 90)*PI/180)) / CELLSIZE_CM + currentPosCells.x);
-				int targetCellY = int((distanceReading * sin((i + 90 * sensor + 90)*PI/180)) / CELLSIZE_CM + currentPosCells.y);
-				gridVal* targetCell = &(grid[targetCellX][targetCellY]);
+				int targetCellX = int((distanceReading * cos((i)*PI/180)) / CELLSIZE_CM + currentPosCells.x);
+				int targetCellY = int((distanceReading * sin((i)*PI/180)) / CELLSIZE_CM + currentPosCells.y);
+				std::cout << targetCellX << " " << targetCellY << std::endl;
+				gridVal* targetCell = grid[targetCellX] + targetCellY;
 				//check fire sensor
 				if (sensor == 0) {//front sensor
-					if (flameSensorData[i] >= FLAMESENSORTHRESHOLD) {
+					if (flameSensorData[i]) {
 						targetCell->cellType = FLAME;
 						candle = Point(targetCellX, targetCellY);
 					}
@@ -269,12 +272,12 @@ void Robot::scanSurroundings(bool ignoreCandles) {//double check that this one i
 			}
 			//every cell between robot and wall is clear
 			//if(distanceReading < 500){
-				for (int dist = 0; dist < distanceReading-1; dist++) {
-					int cellX = int(dist * cos((i + 90 + sensor * 90) * PI / 180) / CELLSIZE_CM + currentPosCells.x);
-					int cellY = int(dist * sin((i + 90 + sensor * 90) * PI / 180) / CELLSIZE_CM + currentPosCells.y);
-					if (cellX >= 0 && cellX < GRIDSIZE_CELLS && cellY >= 0 && cellY < GRIDSIZE_CELLS && grid[cellX][cellY].cellType <= 1)
-						updateGridVal(cellX, cellY, CLEAR);//updateGridVal(cellX, cellY, CLEAR);
-				}
+			for (int dist = 0; dist < distanceReading-1; dist++) {
+				int cellX = int(dist * cos((i) * PI / 180) / CELLSIZE_CM + currentPosCells.x);
+				int cellY = int(dist * sin((i) * PI / 180) / CELLSIZE_CM + currentPosCells.y);
+				if (cellX >= 0 && cellX < GRIDSIZE_CELLS && cellY >= 0 && cellY < GRIDSIZE_CELLS && grid[cellX][cellY].cellType <= 1)
+					updateGridVal(cellX, cellY, CLEAR);//updateGridVal(cellX, cellY, CLEAR);
+			}
 			//}
 		}
 	}
@@ -284,17 +287,21 @@ void Robot::scanSurroundings(bool ignoreCandles) {//double check that this one i
 			//do sonar stuff
 			double distanceReading = sonarData[sensor][i];
 			if (distanceReading < sensorDist_cm && distanceReading > 0) {
-				int targetCellX = int((distanceReading * cos(i + 90 * sensor)) / CELLSIZE_CM + currentPosCells.x);
-				int targetCellY = int((distanceReading * sin(i + 90 * sensor)) / CELLSIZE_CM + currentPosCells.y);
-				gridVal* targetCell = &(grid[targetCellX][targetCellY]);
-				if(findOpenNeighbors(Point(targetCellX, targetCellY)).size() > 2)
-				updateGridVal(targetCellX, targetCellY, CLEAR);// -> cellType = 0;
+				int targetCellX = int((distanceReading*  cos(i)) / CELLSIZE_CM + currentPosCells.x);
+				int targetCellY = int((distanceReading * sin(i)) / CELLSIZE_CM + currentPosCells.y);
+				if(findOpenOrClearNeighbors(Point(targetCellX, targetCellY)).size() > 2){
+					updateGridVal(targetCellX, targetCellY, CLEAR);// -> cellType = 0;
+					if(grid[targetCellX][targetCellY].timesScanned < 5){
+						grid[targetCellX][targetCellY].cellType = UNKNOWN;
+						grid[targetCellX][targetCellY].timesScanned = 0;
+					}
+				}
 				else{
 					for (int i = -2; i <= 2; i++) {
 						for (int j = -2 ; j <= 2; j++) {
 							gridVal* offsetTarget = &(grid[targetCellX + i][targetCellY + j]);
 							if (offsetTarget->cellType <= 1) {
-							//	updateGridVal(targetCellX + i, targetCellY + j, WALL);
+							updateGridVal(targetCellX + i, targetCellY + j, WALL);
 							}
 						}
 					}
@@ -436,6 +443,8 @@ void Robot::updateGridVal(int cellX, int cellY, int type) {
 
 //check later
 int Robot::createTargetPath(Point target, int thresholdDistance) {
+	std::cout << "is there a target? " << target.x << " " << target.y << std::endl;
+
     //fills moves with list of all moves necessary to reach target tile
     //moves contains waypoints at each point the robot switches direction
 
@@ -443,11 +452,14 @@ int Robot::createTargetPath(Point target, int thresholdDistance) {
 	if (target.x == -1)
 		return 1; //map completed
 				  //otherwise...
-	computeDistanceField(target);
+	//computeDistanceField(target);
+	//displayDistanceField();
+
 	int currentDist = distanceField[target.x][target.y];
 	Point currentSquare = target;
 	Point prevDirection(0, 0);
 	Point currDirection(0, 0);
+	std::cout << distanceField[target.x][target.y];
 	for (int reverseCount = 0; reverseCount < distanceField[target.x][target.y]; reverseCount++) {
 		std::vector<Point> openNeighbors;
 		openNeighbors = findOpenNeighbors(currentSquare);
@@ -469,7 +481,6 @@ int Robot::createTargetPath(Point target, int thresholdDistance) {
 			}
 		}
 	}
-    
 	return 0;//map not completed
 }
 
@@ -486,9 +497,10 @@ Point Robot::findNextTarget(bool ignoreCandles) {//This one's pretty fast
 		Point checking = boundary[0];
 		boundary.erase(boundary.begin());
 		std::vector<Point> openNeighbors;
-		openNeighbors = findOpenNeighbors(checking);
+		openNeighbors = findOpenOrClearNeighbors(checking);
 		for (unsigned int i = 0; i < openNeighbors.size(); i++) {
 			gridVal neighbor = grid[openNeighbors[i].x][openNeighbors[i].y];
+			//if(neighbor.cellType == UNKNOWN)
 			if(neighbor.cellType == UNKNOWN && sizeOfUnknown(Point(openNeighbors[i].x, openNeighbors[i].y)) < 10)
 				clearUnknownRegion(Point(openNeighbors[i].x, openNeighbors[i].y));
 			if ((neighbor.cellType == UNKNOWN) || ((neighbor.cellType == FLAME || neighbor.cellType == CANDLE) && !ignoreCandles)) {
@@ -508,13 +520,14 @@ void Robot::extinguishCandle(Point target) {
 	if (!inRoom) {
 		createTargetPath(closestOpenCell(target), 30);
 		moveTo(moves);
+		moves.clear();
 	}
 	digitalWrite(FLAMELEDPIN, HIGH);
 	//actually extinguish the candle
 	double angleToMove = customAtan(target.y - currentPosCells.y, target.x - currentPosCells.x);
 	serialPrintf(arduinoSerial, "r %d\n", (int)(angleToMove * 180 / PI - 90));
 	//arduinoCommands << "r " << (int)(angleToMove * 180 / PI - 90) << "\n";
-	while (flameSensor.getFireIntensity() > FLAMESENSORTHRESHOLD) {
+	while (flameSensor.fireDetected()) {
 		serialPrintf(arduinoSerial, "e\n");//for extinguish
 		//arduinoCommands << "e\n";
 		waitForDoneConfirmation();
@@ -528,6 +541,12 @@ void Robot::extinguishCandle(Point target) {
 			if(grid[target.x + i][target.y + j].cellType == CANDLE || grid[target.x + i][target.y + j].cellType == FLAME)
 				grid[target.x + i][target.y + j].cellType = EXTINGUISHED;
 	waitForDoneConfirmation();
+	if(level == 1){
+		routeToStart();
+		moveTo(moves);
+		moves.clear();
+		exit(1);
+	}
 }
 
 int Robot::sizeOfUnknown(Point unk) {
@@ -539,7 +558,7 @@ int Robot::sizeOfUnknown(Point unk) {
 		Point checking = boundary[0];
 		boundary.erase(boundary.begin());
 		std::vector<Point> openNeighbors;
-		openNeighbors = findOpenNeighbors(checking);
+		openNeighbors = findOpenOrClearNeighbors(checking);
 		for (unsigned int i = 0; i < openNeighbors.size(); i++) {
 			if (grid[openNeighbors[i].x][openNeighbors[i].y].cellType == UNKNOWN) {
 				boundary.push_back(openNeighbors[i]);
@@ -644,6 +663,21 @@ std::vector<Point> Robot::findOpenNeighbors(Point currentPos) {
     return openNeighbors;
 }
 
+std::vector<Point> Robot::findOpenOrClearNeighbors(Point currentPos){
+    std::vector< Point > openNeighbors;
+    for (int x_offset = -1; x_offset < 2; x_offset++) {
+		for (int y_offset = -1; y_offset < 2; y_offset++) {
+			if (!is_diagonal_candidate(x_offset, y_offset) && \
+			grid[currentPos.x + x_offset][currentPos.y + y_offset].cellType <= CLEARTHRESHOLD) {
+			openNeighbors.push_back(Point(currentPos.x + x_offset,
+							  currentPos.y + y_offset));
+			}
+		}
+    }
+    return openNeighbors;
+}
+
+
 //good
 
 //x\y 1  0 -1
@@ -657,29 +691,41 @@ bool Robot::is_diagonal_candidate(int x_offset, int y_offset) {
 
 void Robot::moveTo(std::vector<Point> moves, bool takePictures){
     // send commands to Arduino to go somewhere by grid coordinates
+	serialPrintf(arduinoSerial, "z %d %d %d\n", 0, currentPosCells.x, currentPosCells.y);
 	updateTime();
-	if (moves.size() >= 0) {
+	double angleDelta;
+	std::cout << "inMoves" << std::endl;
+	if (moves.size() > 0) {
 		for (unsigned int i = 0; i < moves.size(); i++) {
+			angleDelta = 0;
+			std::cout << "currnet pos" << currentPosCells.x << " " << currentPosCells.y << std::endl;
+			std::cout <<"moves" << std::endl;
+			std::cout << "m " << moves[i].x << " " << moves[i].y << std::endl;
 			serialPrintf(arduinoSerial, "m %d %d\n", moves[i].x, moves[i].y);
 			//arduinoCommands << "m " << moves[i].x << " " << moves[i].y << "\n";
 			while (!serialDataAvail(arduinoSerial)) {
 				updateTime();
-				updateAngle(std::chrono::duration_cast<std::chrono::microseconds>(currTime - prevTime).count());
+				angleDelta += updateAngle(std::chrono::duration_cast<std::chrono::microseconds>(currTime - prevTime).count());
 			}
-			if (takePictures)
-				takePicture();
+			std::cout << "finished moving" << std::endl;
+			//if (takePictures)
+			//	takePicture();
 			char receive[15];
 			int j = 0;
 			while ((receive[j] = serialGetchar(arduinoSerial)) != '\n')
 				j++;
+			//int x = 0;
+			//int y = 0;
 			sscanf(receive, "%d", &(currentPosCells.x));
 			sscanf(receive, " %d", &(currentPosCells.y));
-			serialPrintf(arduinoSerial, "r %d\n", -(int)angle);
+			std::cout << currentPosCells.x << " " << currentPosCells.y << std::endl;
+			std::cout << "rotate " << -(int) angleDelta << std::endl;
+			serialPrintf(arduinoSerial, "r %d\n", -(int)angleDelta);
 			//arduinoCommands << "r " << -angle << "\n";
 			angle = 0;
 			int xCorrect = 0;
 			int yCorrect = 0;
-
+/*
 			//compare alleged sonar values to real sonar values to get real pos
 			int allegedSonar0 = distanceToWall(0, 1);
 			int allegedSonar1 = distanceToWall(1, 0);
@@ -702,14 +748,19 @@ void Robot::moveTo(std::vector<Point> moves, bool takePictures){
 			if (allegedSonar3 != -1 && abs(allegedSonar3 - realSonar3) < 10) {//left
 				xCorrect = -(allegedSonar3 - realSonar3);
 			}
-			serialPrintf(arduinoSerial, "m %d %d\n", xCorrect, yCorrect);
-			//arduinoCommands << "m " << xCorrect << " " << yCorrect << "\n";
+			std::cout << "adjustments: " << xCorrect << " " << yCorrect <<std::endl;
+			serialPrintf(arduinoSerial, "m %d %d\n", currentPosCells.x + xCorrect, 0);
 			j = 0;
 			while ((receive[j] = serialGetchar(arduinoSerial)) != '\n')
 				j++;
+			serialPrintf(arduinoSerial, "m %d %d\n", 0, currentPosCells.y + yCorrect);
+			j = 0;
+			while ((receive[j] = serialGetchar(arduinoSerial)) != '\n')
+				j++;
+			//arduinoCommands << "m " << xCorrect << " " << yCorrect << "\n";
 			serialPrintf(arduinoSerial, "z 0 %d %d\n", currentPosCells.x, currentPosCells.y);
 			//arduinoCommands << "z 0 " << currentPosCells.x << currentPosCells.y << "\n";
-		}
+		*/}
 	}
 }
 
@@ -866,6 +917,7 @@ void Robot::goSaveBaby() {
 		turnAngle = (PI / 2 + j)*180/PI;
 	}
 	Point target = Point(safeZoneLocation.x + direction.x * ROBOT_DIAMETER_CM / 2 + 1, safeZoneLocation.y + direction.y * ROBOT_DIAMETER_CM / 2 + 1);
+
 	createTargetPath(target);
 	moveTo(moves);
 	moves.clear();
@@ -902,12 +954,27 @@ void Robot::outputGrid() {
 	//arduinoCommands << "\n";
 	for (int i = currentPosCells.x - 100; i < currentPosCells.x + 100; i++) {
 		for (int j = currentPosCells.y - 100; j < currentPosCells.y + 100; j++) {
-			std::cout << (grid[i][j].cellType < CLEARTHRESHOLD && grid[i][j].cellType > 0 ? 0 : ((int)grid[i][j].cellType == -1 ? 7 : (int)grid[i][j].cellType));
+			if(i == currentPosCells.x && j == currentPosCells.y)
+				std::cout << 8;
+			else
+				std::cout << (grid[i][j].cellType <= CLEARTHRESHOLD && grid[i][j].cellType > 0 ? 0 : ((int)grid[i][j].cellType == -1 ? 7 : (int)grid[i][j].cellType));
 			//arduinoCommands << (grid[i][j].cellType < .25 ? 0 : (int)grid[i][j].cellType);
 		}
 		std::cout << std::endl;
 	}
 }
+
+void Robot::displayDistanceField() {
+	//arduinoCommands << "\n";
+	for (int i = currentPosCells.x - 100; i < currentPosCells.x + 100; i++) {
+		for (int j = currentPosCells.y - 100; j < currentPosCells.y + 100; j++) {
+				std::cout << (distanceField[i][j] == -1 ? 0 : distanceField[i][j]);
+			//arduinoCommands << (grid[i][j].cellType < .25 ? 0 : (int)grid[i][j].cellType);
+		}
+		std::cout << std::endl;
+	}
+}
+
 
 void Robot::takePicture(){
 	return;
